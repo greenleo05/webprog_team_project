@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>컴공생 마법소녀의 하루</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="game-container" class="game-container">
+        <!-- 상단 UI 패널 -->
+        <div class="top-panel" id="ui-panel">
+            <div class="stats">
+                <div class="stage-info">
+                    <span id="timeDisplay">08:00</span> - <span id="stageNameDisplay">지하철(등굣길)</span>
+                </div>
+                <div class="stat-item">⏱️ <span id="timerDisplay">60</span>s</div>
+                <div class="stat-item">♥ <span id="livesDisplay">3</span></div>
+                <div class="stat-item">⭐ <span id="scoreDisplay">0</span></div>
+            </div>
+            
+            <div class="controls">
+                <button id="pauseBtn" class="icon-btn" title="일시정지">⏸️</button>
+            </div>
+        </div>
+
+        <!-- 게임 화면 영역 -->
+        <div id="game-wrapper" class="game-wrapper">
+            <div id="pause-overlay" class="overlay-screen">
+                <h2>PAUSED</h2>
+                <div class="pause-menu">
+                    <button id="resumeBtn" class="main-btn">▶️ 이어하기</button>
+                    <button id="restartStageBtn" class="main-btn">🔄 스테이지 재시작</button>
+                    <button id="settingsBtn" class="main-btn">⚙️ 환경설정</button>
+                    <button id="goToMainBtn" class="main-btn">🏠 메인으로</button>
+                </div>
+            </div>
+
+            <!-- 환경설정 오버레이 -->
+            <div id="settings-overlay" class="overlay-screen" style="display: none;">
+                <h2>⚙️ 환경설정</h2>
+                <div class="settings-content">
+                    <div class="setting-item">
+                        <label>공 색상</label>
+                        <select id="ball-color" class="custom-select">
+                            <option value="red">🔴 빨간색</option>
+                            <option value="blue">🔵 파란색</option>
+                            <option value="green">🟢 초록색</option>
+                        </select>
+                    </div>
+                    <div class="setting-item">
+                        <label>바 색상</label>
+                        <select id="paddle-color" class="custom-select">
+                            <option value="#ff69b4">🌸 핑크색</option>
+                            <option value="#87ceeb">🧊 하늘색</option>
+                            <option value="#ffd700">⭐ 노란색</option>
+                        </select>
+                    </div>
+                    <div class="setting-item">
+                        <label>배경음악 음량</label>
+                        <input type="range" id="bgm-volume" min="0" max="100" value="50" class="custom-slider">
+                    </div>
+                </div>
+                <button id="closeSettingsBtn" class="main-btn" style="margin-top: 30px;">닫기</button>
+            </div>
+            
+            <canvas id="gameCanvas" width="800" height="600"></canvas>
+            
+            <div id="main-screen" class="overlay-screen">
+                <h1 id="mainTitle">컴공생 마법소녀의 하루</h1>
+                <p id="mainDesc">버그를 물리치고 무사히 과제를 제출하세요!</p>
+                
+                <div id="stage-select-container">
+                    <!-- 스테이지 버튼들이 여기에 동적으로 생성됩니다 -->
+                </div>
+                
+                <button id="mainStartBtn" class="main-btn">게임 시작</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="game.js"></script>
+</body>
+</html>

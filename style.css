@@ -1,0 +1,293 @@
+* {
+    box-sizing: border-box;
+    font-family: 'Noto Sans KR', sans-serif;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    background: linear-gradient(135deg, #fbc2eb 0%, #a6c1ee 100%);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+}
+
+.game-container {
+    position: relative;
+    background: rgba(255, 255, 255, 0.85);
+    border-radius: 20px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    width: 800px;
+    border: 2px solid rgba(255, 255, 255, 0.5);
+    transition: background-color 0.5s ease;
+}
+
+.top-panel {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 20px;
+    background: rgba(255, 255, 255, 0.5);
+    border-bottom: 2px solid rgba(255, 255, 255, 0.3);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    z-index: 5;
+}
+
+.settings {
+    display: flex;
+    gap: 10px;
+}
+
+.custom-select {
+    padding: 6px 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.8);
+    background: rgba(255, 255, 255, 0.7);
+    font-size: 15px;
+    cursor: pointer;
+    outline: none;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    transition: all 0.2s ease;
+}
+
+.custom-select:hover {
+    background: rgba(255, 255, 255, 0.9);
+}
+
+.stats {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    font-size: 18px;
+    color: #444;
+}
+
+.stage-info {
+    font-size: 20px;
+    color: #ff4757;
+    font-weight: bold;
+    text-shadow: 1px 1px 2px rgba(255, 255, 255, 0.8);
+}
+
+.stat-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255, 255, 255, 0.7);
+    padding: 6px 14px;
+    border-radius: 15px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+}
+
+#timerDisplay { color: #007bff; font-weight: bold; }
+#livesDisplay { color: #ff4757; font-weight: bold; }
+#scoreDisplay { color: #ffa502; font-weight: bold; }
+
+.controls {
+    display: flex;
+    gap: 10px;
+}
+
+.main-btn {
+    background: linear-gradient(120deg, #ff9a9e 0%, #fecfef 100%);
+    border: none;
+    padding: 8px 20px;
+    border-radius: 20px;
+    color: #555;
+    font-weight: bold;
+    font-size: 16px;
+    cursor: pointer;
+    box-shadow: 0 4px 10px rgba(255, 154, 158, 0.4);
+    transition: all 0.3s ease;
+}
+
+.main-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 15px rgba(255, 154, 158, 0.6);
+}
+
+.icon-btn {
+    background: linear-gradient(120deg, #e0c3fc 0%, #8ec5fc 100%);
+    border: none;
+    padding: 8px 12px;
+    border-radius: 50%;
+    font-size: 16px;
+    cursor: pointer;
+    box-shadow: 0 4px 10px rgba(142, 197, 252, 0.4);
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.icon-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 15px rgba(142, 197, 252, 0.6);
+}
+
+.game-wrapper {
+    position: relative;
+    width: 800px;
+    height: 600px;
+    display: flex;
+}
+
+canvas {
+    display: block;
+    background: transparent; /* 배경색을 컨테이너에서 담당하도록 투명 처리 */
+}
+
+.overlay-screen {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.3);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 10;
+}
+
+#main-screen {
+    background: rgba(255, 255, 255, 0.5);
+}
+
+#mainTitle {
+    font-size: 42px;
+    color: #ff4757;
+    text-shadow: 2px 2px 0px #fff;
+    margin-bottom: 10px;
+    text-align: center;
+}
+
+#mainDesc {
+    font-size: 20px;
+    color: #444;
+    margin-bottom: 30px;
+    background: rgba(255,255,255,0.8);
+    padding: 15px 25px;
+    border-radius: 15px;
+    text-align: center;
+    line-height: 1.5;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+    white-space: pre-line;
+}
+
+#mainStartBtn {
+    font-size: 22px;
+    padding: 12px 40px;
+}
+
+#pause-overlay {
+    display: none;
+    z-index: 20;
+    background: rgba(0, 0, 0, 0.4);
+}
+
+#pause-overlay h2 {
+    font-size: 50px;
+    color: #fff;
+    text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+    letter-spacing: 3px;
+    margin-bottom: 20px;
+}
+
+.pause-menu {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    align-items: center;
+}
+
+.pause-menu .main-btn {
+    font-size: 20px;
+    padding: 12px 30px;
+    width: 220px;
+}
+
+#settings-overlay {
+    z-index: 30;
+    background: rgba(255, 255, 255, 0.85);
+}
+
+#settings-overlay h2 {
+    font-size: 40px;
+    color: #444;
+    margin-bottom: 30px;
+    text-shadow: 1px 1px 2px #fff;
+}
+
+.settings-content {
+    background: rgba(255, 255, 255, 0.8);
+    padding: 25px 40px;
+    border-radius: 15px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+    min-width: 350px;
+    display: flex;
+    flex-direction: column;
+    gap: 25px;
+}
+
+.setting-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 20px;
+    font-size: 22px;
+    color: #333;
+    font-weight: bold;
+}
+
+.custom-slider {
+    width: 150px;
+    cursor: pointer;
+    accent-color: #ff9a9e;
+}
+
+#stage-select-container {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 25px;
+    flex-wrap: wrap;
+    justify-content: center;
+    max-width: 600px;
+}
+
+.stage-btn {
+    padding: 12px 20px;
+    font-size: 18px;
+    border-radius: 15px;
+    border: none;
+    background: linear-gradient(120deg, #e0c3fc 0%, #8ec5fc 100%);
+    color: #444;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 4px 10px rgba(142, 197, 252, 0.4);
+    transition: all 0.3s ease;
+}
+
+.stage-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 15px rgba(142, 197, 252, 0.6);
+}
+
+.stage-btn.locked {
+    background: #e0e0e0;
+    color: #999;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+.stage-btn.locked:hover {
+    transform: none;
+}
