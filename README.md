@@ -1,1 +1,3 @@
-# webprog_team_project
+# 컴공생 x 마법소녀 벽돌깨기
+
+많관부
