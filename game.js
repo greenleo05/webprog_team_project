@@ -400,17 +400,37 @@ function initStage(index) {
     stage.init();
 }
 
+function drawPixelBlock(ctx, x, y, w, h, baseColor) {
+    // 검은색 외곽선
+    ctx.fillStyle = "#000";
+    ctx.fillRect(x, y, w, h);
+    
+    // 내부 베이스 색상
+    ctx.fillStyle = baseColor;
+    ctx.fillRect(x + 2, y + 2, w - 4, h - 4);
+    
+    // 하이라이트 (좌상단 베벨)
+    ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
+    ctx.fillRect(x + 2, y + 2, w - 4, 3); // top
+    ctx.fillRect(x + 2, y + 2, 3, h - 4); // left
+    
+    // 섀도우 (우하단 베벨)
+    ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
+    ctx.fillRect(x + 2, y + h - 5, w - 4, 3); // bottom
+    ctx.fillRect(x + w - 5, y + 2, 3, h - 4); // right
+}
+
 // 6. 그리기 로직
 function drawBall() {
+    const size = ball.radius * 2;
+    const px = ball.x - ball.radius;
+    const py = ball.y - ball.radius;
+
     if (ball.isRespawning) {
         // 깜빡임 효과 (150ms 간격으로 on/off)
         const elapsed = Date.now() - ball.respawnTimer;
         if (Math.floor(elapsed / 150) % 2 === 0) {
-            ctx.beginPath();
-            ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
-            ctx.fillStyle = ball.color;
-            ctx.fill();
-            ctx.closePath();
+            drawPixelBlock(ctx, px, py, size, size, ball.color);
         }
 
         // 1초(1000ms) 대기 후 발사
@@ -420,11 +440,7 @@ function drawBall() {
             ball.dy = BASE_SPEED;
         }
     } else {
-        ctx.beginPath();
-        ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
-        ctx.fillStyle = ball.color;
-        ctx.fill();
-        ctx.closePath();
+        drawPixelBlock(ctx, px, py, size, size, ball.color);
     }
 }
 
@@ -433,19 +449,10 @@ function drawPaddle() {
     if (processedImg && processedImg.complete && processedImg.naturalWidth !== 0) {
         const imgW = 90;
         const imgH = 90;
-        // y위치를 패들 바로 아래쪽에 위치하도록 조정
-        ctx.drawImage(processedImg, paddle.x + paddle.width / 2 - imgW / 2, paddle.y + 5, imgW, imgH);
+        ctx.drawImage(processedImg, paddle.x + paddle.width / 2 - imgW / 2, paddle.y + 15, imgW, imgH);
     }
 
-    ctx.beginPath();
-    ctx.rect(paddle.x, paddle.y, paddle.width, paddle.height);
-
-    ctx.shadowBlur = 15;
-    ctx.shadowColor = "#ff1493";
-    ctx.fillStyle = paddle.color;
-    ctx.fill();
-    ctx.closePath();
-    ctx.shadowBlur = 0;
+    drawPixelBlock(ctx, paddle.x, paddle.y, paddle.width, paddle.height, paddle.color);
 }
 
 function drawBricks() {
@@ -480,8 +487,8 @@ function drawBricks() {
                 b.x = bx;
                 b.y = by;
 
-                ctx.beginPath();
                 if (b.type === 'bugcode') {
+                    ctx.beginPath();
                     ctx.fillStyle = "rgba(255, 0, 0, 0.2)";
                     ctx.fillRect(bx, by, bw, bh);
                     ctx.fillStyle = "#f14c4c";
@@ -494,20 +501,15 @@ function drawBricks() {
                     ctx.lineTo(bx + bw, by + bh);
                     ctx.stroke();
                     ctx.setLineDash([]);
+                    ctx.closePath();
                 } else if (b.type === 'food') {
-                    ctx.fillStyle = "#ffb6c1";
-                    ctx.rect(bx, by, bw, bh);
-                    ctx.fill();
+                    drawPixelBlock(ctx, bx, by, bw, bh, "#ffb6c1");
                 } else if (b.type === 'troll') {
-                    ctx.fillStyle = "#8a2be2";
-                    ctx.rect(bx, by, bw, bh);
-                    ctx.fill();
+                    drawPixelBlock(ctx, bx, by, bw, bh, "#8a2be2");
                 } else {
-                    ctx.fillStyle = b.hp === 2 ? "#555" : "#FF5733";
-                    ctx.rect(bx, by, bw, bh);
-                    ctx.fill();
+                    let color = b.hp === 2 ? "#555555" : "#FF5733";
+                    drawPixelBlock(ctx, bx, by, bw, bh, color);
                 }
-                ctx.closePath();
             }
         }
     }
@@ -519,10 +521,13 @@ function drawBoss() {
         ctx.font = "bold 80px Consolas";
         ctx.fillText(";", boss.x - 20, boss.y + 30);
 
+        // 레트로 픽셀 HP 바
+        ctx.fillStyle = "#000";
+        ctx.fillRect(boss.x - 42, boss.y - 52, 84, 14);
         ctx.fillStyle = "white";
         ctx.fillRect(boss.x - 40, boss.y - 50, 80, 10);
         ctx.fillStyle = "red";
-        ctx.fillRect(boss.x - 40, boss.y - 50, (boss.hp / 20) * 80, 10); // 최대 체력 20 비례
+        ctx.fillRect(boss.x - 40, boss.y - 50, (boss.hp / 20) * 80, 10);
     }
 }
 
