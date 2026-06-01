@@ -21,7 +21,7 @@
 * `score` (총 누적 점수), `lives` (플레이어 잔여 목숨, 초기 기동 시 10으로 할당되나 게임 실행 시 3으로 재설정), `currentStageIndex` (현재 활성화된 스테이지 배열 인덱스).
 * `maxUnlockedStage`: 로컬스토리지 `maxUnlockedStage` 키값에서 가져온 도달 최고 스테이지(기본값 0).
 * `timeLeft` (남은 시간 초, 60초 시작), `lastTime` (1초 감소 여부를 판정하기 위한 이전 시스템 타임스탬프).
-* `BASE_SPEED`: 공의 전체 속력 크기를 정의하는 스칼라 상수 ($\sqrt{3^2 + 3^2} \approx 4.24$). 방향 벡터 분할이 일어나더라도 언제나 일정한 물리 속력을 가지도록 수학적인 기준으로 삼습니다.
+* `BASE_SPEED`: 공의 전체 속력 크기를 정의하는 스칼라 상수 (`Math.sqrt(3*3 + 3*3) ≈ 4.24`). 방향 벡터 분할이 일어나더라도 언제나 일정한 물리 속력을 가지도록 수학적인 기준으로 삼습니다.
 
 ### 1.4 핵심 물리 객체 스키마
 * **`paddle`**: 가로 크기(`width`), 세로 크기(`height`), 좌표(`x`, `y`), 색상 정보 정의.
@@ -53,12 +53,13 @@
 4. **Stage 3 (조별과제) [17:00]**
    * 패들 크기: 150px
    * 2행 5열 레이아웃. 각 블록 배치 시 30% 확률로 `troll` 타입, 70% 확률로 `normal` 타입을 할당합니다.
-   * **실시간 갱신 (`update`)**: `troll` 타입 블록들의 `offsetX` 값을 $\sin(\text{Time} / 150 + \text{col} + \text{row}) \times 15$ 공식을 사용하여 주기적으로 좌우로 흔들리게 만들어 동적인 타격 난이도를 제공합니다.
+   * **실시간 갱신 (`update`)**: `troll` 타입 블록들의 `offsetX` 값을 `Math.sin(Time / 150 + col + row) * 15` 공식을 사용하여 주기적으로 좌우로 흔들리게 만들어 동적인 타격 난이도를 제공합니다.
 5. **Stage 4 (과제 - 버그 물리치기) [23:00]**
    * 패들 크기: 150px
    * 보스 세팅: `boss` 객체를 Phase 1, 비활성화(`active: false`), 체력 `20`으로 초기 설정. 체스판 형태로 빈 곳과 `bugcode` 타입 벽돌을 교차 배치.
    * **실시간 갱신 (`update`)**:
-     * 에러 코드 벽돌이 전부 클리어되는 즉시 `boss.phase = 3`, `boss.active = true`로 전환하여 보스 페이즈를 시작하며, 공의 Y축 속도를 강제로 위로 튕깁니다.
+     * 에러 코드 벽돌이 모두 파괴되면 곧바로 전투를 시작하지 않고 `boss.phase = 2`로 진입하여 **경고 연출(3초)**을 수행합니다. 이때 화면이 흔들리며 붉은 배경과 점멸하는 경고 메시지가 출력됩니다.
+     * 3초가 지나면 `boss.phase = 3`, `boss.active = true`로 전환되어 본격적인 전투 페이즈가 시작되며, 공의 Y축 속도를 위로 튕겨서 공격을 유도합니다.
      * 보스 활성화 시 `boss.x` 좌표에 `boss.dx`를 지속 가산하며, 벽 경계(`canvas.width - radius` 또는 `radius`)에 충돌할 때 방향 벡터 부호 반전(`boss.dx *= -1`).
 
 ---
@@ -69,47 +70,64 @@
 공과 사각형의 충돌 판정 및 연산 과정은 다음과 같습니다.
 
 1. **가장 가까운 점 탐색 (Closest Point on AABB)**:
-   직사각형 내/외부에서 공의 중심점 $(X_c, Y_c)$와 가장 가까운 좌표 $(X_t, Y_t)$를 수학적으로 제한(Clamp)하여 도출합니다.
-   $$X_t = \max(x_{\text{rect}}, \min(X_c, x_{\text{rect}} + w_{\text{rect}}))$$
-   $$Y_t = \max(y_{\text{rect}}, \min(Y_c, y_{\text{rect}} + h_{\text{rect}}))$$
+   직사각형 내/외부에서 공의 중심점 `(X_c, Y_c)`와 가장 가까운 좌표 `(X_t, Y_t)`를 한계점 제한(Clamp) 방식을 통해 도출합니다.
+   ```text
+   X_t = Math.max(x_rect, Math.min(X_c, x_rect + w_rect))
+   Y_t = Math.max(y_rect, Math.min(Y_c, y_rect + h_rect))
+   ```
 
 2. **충돌 여부 검증 (Distance Check)**:
-   공의 중심점과 구한 최단 점 사이의 거리 $D$를 구하여 공의 반지름 $R$과 비교합니다.
-   $$D = \sqrt{(X_c - X_t)^2 + (Y_c - Y_t)^2}$$
-   $D \le R$ 인 경우 충돌이 일어난 것으로 판정합니다.
+   공의 중심점과 구한 최단 점 사이의 거리 `D`를 구하여 공의 반지름 `R`과 비교합니다.
+   ```text
+   D = Math.sqrt((X_c - X_t)^2 + (Y_c - Y_t)^2)
+   if (D <= R) -> 충돌 발생
+   ```
 
 3. **겹침 해결 (Overlap Resolution)**:
-   프레임 지연으로 인해 공이 사각형 깊숙이 파고드는 연산 오차를 해결하고자 물리 위치를 보정합니다. 겹친 깊이(Overlap)는 $R - D$입니다.
-   단위 법선 벡터 $(n_x, n_y)$를 구하여 공의 좌표에 보정 벡터를 더해 밀어냅니다.
-   $$n_x = \frac{X_c - X_t}{D}, \quad n_y = \frac{Y_c - Y_t}{D}$$
-   $$X_{c, \text{new}} = X_c + n_x \times (R - D)$$
-   $$Y_{c, \text{new}} = Y_c + n_y \times (R - D)$$
-   *만약 두 점 사이의 거리 $D$가 0인 예외 상황(완전히 겹친 경우)에는 공을 강제로 패들의 높이만큼 위쪽으로 이동시킵니다.*
+   프레임 지연으로 인해 공이 사각형 깊숙이 파고드는 연산 오차를 해결하고자 물리 위치를 보정합니다. 겹친 깊이(Overlap)는 `R - D`입니다.
+   단위 법선 벡터 `(n_x, n_y)`를 구하여 공의 좌표에 보정 벡터를 더해 밀어냅니다.
+   ```text
+   n_x = (X_c - X_t) / D
+   n_y = (Y_c - Y_t) / D
+
+   X_c_new = X_c + n_x * (R - D)
+   Y_c_new = Y_c + n_y * (R - D)
+   ```
+   *만약 두 점 사이의 거리 `D`가 0인 예외 상황(완전히 겹친 경우)에는 공을 강제로 패들의 높이만큼 위쪽으로 이동시킵니다.*
 
 4. **충돌 반사각 벡터 연산 (Vector Reflection)**:
-   법선 벡터 $\vec{N} = (n_x, n_y)$와 공의 진행 속도 벡터 $\vec{V} = (dx, dy)$의 내적을 이용해 속도를 반사합니다.
-   $$\vec{V}_{\text{reflected}} = \vec{V} - 2(\vec{V} \cdot \vec{N})\vec{N}$$
-   *이때 다중 튕김 현상을 억제하기 위해 공이 사각형을 향해 이동 중인 음수 내적 상태($\vec{V} \cdot \vec{N} < 0$)일 때만 법선 반사를 허용합니다.*
+   법선 벡터 `N`과 공의 진행 속도 벡터 `V`의 내적을 이용해 속도를 반사합니다.
+   ```text
+   V_reflected = V - 2 * (V · N) * N
+   ```
+   *이때 다중 튕김 현상을 억제하기 위해 공이 사각형을 향해 이동 중인 음수 내적 상태(`V · N < 0`)일 때만 법선 반사를 허용합니다.*
 
 ### 3.2 패들 튕김 각도 조절 물리 (유도탄 앵글)
 패들 상단면에 부딪혔을 때는 완전 탄성 반사를 적용하지 않고 플레이어의 컨트롤 요소를 가미하기 위한 상대적 위치 맵핑 반사 물리식을 활용합니다.
 
 1. **상대적 위치 비율 계산**:
-   패들 중앙점 기준 공이 맞은 실좌표의 이격 거리 및 정규화 비율($-1.0 \sim 1.0$)을 구합니다.
-   $$\text{hitPoint} = X_c - \left(x_{\text{paddle}} + \frac{w_{\text{paddle}}}{2}\right)$$
-   $$\text{normalizedHitPoint} = \frac{\text{hitPoint}}{w_{\text{paddle}} / 2}$$
+   패들 중앙점 기준 공이 맞은 실좌표의 이격 거리 및 정규화 비율(`-1.0 ~ 1.0` 범위)을 구합니다.
+   ```text
+   hitPoint = X_c - (x_paddle + w_paddle / 2)
+   normalizedHitPoint = hitPoint / (w_paddle / 2)
+   ```
 
 2. **반사각도 및 속도 벡터 매핑**:
-   최대 반사 각도를 $60^\circ$ ($\frac{\pi}{3} \text{ rad}$)로 한정하고, 공의 진행 속도 벡터 크기를 균일하게 맞춥니다.
-   $$\text{bounceAngle} = \text{normalizedHitPoint} \times \frac{\pi}{3}$$
-   $$dx = \text{BASE\_SPEED} \times \sin(\text{bounceAngle})$$
-   $$dy = -\left|\text{BASE\_SPEED} \times \cos(\text{bounceAngle})\right|$$
+   최대 반사 각도를 좌우 60도(`Math.PI / 3`)로 한정하고, 공의 진행 속도 벡터 크기를 균일하게 맞춥니다.
+   ```text
+   bounceAngle = normalizedHitPoint * (Math.PI / 3)
+   dx = BASE_SPEED * Math.sin(bounceAngle)
+   dy = -Math.abs(BASE_SPEED * Math.cos(bounceAngle))
+   ```
    이로써 공은 패들 윗면에 부딪힌 부위에 비례하여 조준 사격과 동일하게 제어할 수 있는 방향성을 얻게 됩니다.
 
 ### 3.3 원과 원의 충돌 판정 (공과 보스 캐릭터)
-보스의 중심점 $(X_b, Y_b)$, 반지름 $R_{\text{boss}}$와 공의 중심점 $(X_c, Y_c)$, 반지름 $R_{\text{ball}}$의 유클리드 거리를 측정합니다.
-$$D = \sqrt{(X_c - X_b)^2 + (Y_c - Y_b)^2}$$
-$$D < R_{\text{ball}} + R_{\text{boss}}$$ 일 때 충돌을 인식하며, 공을 반지름 합산 거리 바깥으로 밀어낸 뒤 중심 기준 반사 각도로 리디렉션 처리합니다.
+보스의 중심점 `(X_b, Y_b)`, 반지름 `R_boss`와 공의 중심점 `(X_c, Y_c)`, 반지름 `R_ball`의 유클리드 거리를 측정합니다.
+```text
+D = Math.sqrt((X_c - X_b)^2 + (Y_c - Y_b)^2)
+if (D < R_ball + R_boss) -> 충돌 판정
+```
+충돌 시 공을 반지름 합산 거리 바깥으로 밀어낸 뒤 중심 기준 반사 각도로 리디렉션 처리합니다.
 *보스의 무적 처리를 위해 피격 시 200ms 동안 추가 데미지가 발생하지 않도록 쿨다운 타임을 체크합니다.*
 
 ---
@@ -121,7 +139,7 @@ $$D < R_{\text{ball}} + R_{\text{boss}}$$ 일 때 충돌을 인식하며, 공을
 1. **타이머 갱신**:
    `Date.now() - lastTime >= 1000` 판정을 거쳐 1초마다 남은 시간 `timeLeft`를 차감하고 UI 텍스트에 적용합니다.
 2. **스테이지 개별 실시간 로직 처리**:
-   현재 스테이지 인덱스에 따라 흔들리는 벽돌의 이동량 연산이나 보스 이동 처리를 구동합니다.
+   현재 스테이지 인덱스에 따라 흔들리는 벽돌의 이동량 연산이나 보스(등장 연출 및 이동) 로직 처리를 구동합니다.
 3. **공의 위치 변이 가산**:
    부활 대기 모드(`isRespawning`)가 아니라면 X, Y 좌표에 각각 방향 속도 `dx`, `dy`를 더해 줍니다.
 4. **외벽 경계 Clamp 처리**:
@@ -153,5 +171,7 @@ $$D < R_{\text{ball}} + R_{\text{boss}}$$ 일 때 충돌을 인식하며, 공을
 
 ### 5.2 리스폰 무적 상태 플리커 (Flicker) 연산
 공이 소실되어 재생성 모드(`isRespawning: true`)에 들어가면, 현재 시각과 `respawnTimer`의 차이값(`elapsed`)을 계산합니다.
-$$\text{flickerPhase} = \text{Math.floor}(\text{elapsed} / 150) \pmod 2$$
+```text
+flickerPhase = Math.floor(elapsed / 150) % 2
+```
 0일 때는 렌더링을 건너뛰고 1일 때만 그려지도록 제어하여 1초(1000ms) 동안 빠르게 점멸하는 효과를 완성한 뒤, 시간이 지나면 낙하 운동을 개시합니다.

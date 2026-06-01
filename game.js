@@ -232,9 +232,18 @@ const stages = [
         },
         update: () => {
             if (boss.phase === 1 && checkAllBricksCleared()) {
-                boss.phase = 3;
-                boss.active = true;
-                ball.dy = -Math.abs(ball.dy);
+                boss.phase = 2;
+                boss.appearanceStartTime = Date.now();
+                ball.dy = Math.abs(ball.dy);
+            }
+
+            if (boss.phase === 2) {
+                const elapsed = Date.now() - boss.appearanceStartTime;
+                if (elapsed > 3000) {
+                    boss.phase = 3;
+                    boss.active = true;
+                    ball.dy = -Math.abs(ball.dy);
+                }
             }
 
             if (boss.active && boss.phase === 3) {
@@ -516,7 +525,30 @@ function drawBricks() {
 }
 
 function drawBoss() {
-    if (boss && boss.active && boss.phase === 3) {
+    if (!boss) return;
+
+    if (boss.phase === 2) {
+        const elapsed = Date.now() - boss.appearanceStartTime;
+        
+        ctx.save();
+        const shakeX = (Math.random() - 0.5) * 10;
+        const shakeY = (Math.random() - 0.5) * 10;
+        ctx.translate(shakeX, shakeY);
+        
+        ctx.fillStyle = "rgba(255, 0, 0, 0.2)";
+        ctx.fillRect(-10, -10, canvas.width + 20, canvas.height + 20);
+
+        if (Math.floor(elapsed / 200) % 2 === 0) {
+            ctx.fillStyle = "#ff0000";
+            ctx.font = "bold 40px Consolas";
+            ctx.textAlign = "center";
+            ctx.fillText("! WARNING !", canvas.width / 2, canvas.height / 2 - 30);
+            ctx.font = "bold 24px Consolas";
+            ctx.fillText("FATAL ERROR: MISSING SEMICOLON", canvas.width / 2, canvas.height / 2 + 10);
+            ctx.textAlign = "left";
+        }
+        ctx.restore();
+    } else if (boss.active && boss.phase === 3) {
         ctx.fillStyle = "#ff0000";
         ctx.font = "bold 80px Consolas";
         ctx.fillText(";", boss.x - 20, boss.y + 30);
