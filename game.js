@@ -219,7 +219,7 @@ const stages = [
             paddle.width = 150;
             // 최종 보스 체력 유저 모드 시 상향
             let bossHp = isDevMode ? 20 : 50;
-            boss = { phase: 1, active: false, hp: bossHp, x: canvas.width / 2, y: 150, radius: 40, dx: 3, dy: 1 };
+            boss = { phase: 1, active: false, hp: bossHp, maxHp: bossHp, x: canvas.width / 2, y: 150, radius: 40, dx: 3, dy: 1 };
 
             const rowCount = isDevMode ? 2 : 4;
             const colCount = isDevMode ? 3 : 6;
@@ -428,16 +428,16 @@ function drawPixelBlock(ctx, x, y, w, h, baseColor) {
     // 검은색 외곽선
     ctx.fillStyle = "#000";
     ctx.fillRect(x, y, w, h);
-    
+
     // 내부 베이스 색상
     ctx.fillStyle = baseColor;
     ctx.fillRect(x + 2, y + 2, w - 4, h - 4);
-    
+
     // 하이라이트 (좌상단 베벨)
     ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
     ctx.fillRect(x + 2, y + 2, w - 4, 3); // top
     ctx.fillRect(x + 2, y + 2, 3, h - 4); // left
-    
+
     // 섀도우 (우하단 베벨)
     ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
     ctx.fillRect(x + 2, y + h - 5, w - 4, 3); // bottom
@@ -483,15 +483,40 @@ function drawBricks() {
     const stage = stages[currentStageIndex];
 
     if (currentStageIndex === 4) {
-        ctx.fillStyle = "#4ec9b0";
+        ctx.fillStyle = "rgba(78, 201, 176, 0.3)";
         ctx.font = "16px Consolas, monospace";
-        ctx.fillText("function doAssignment() {", 20, 40);
-        ctx.fillText("    const target = 'A+';", 20, 80);
-        ctx.fillText("    let sleep = 0;", 20, 120);
-        ctx.fillText("    while(bug) {", 20, 160);
-        ctx.fillText("        fixBug();", 20, 200);
-        ctx.fillText("    }", 20, 240);
-        ctx.fillText("}", 20, 280);
+        const codeLines = [
+            "function doAssignment() {",
+            "    const target = 'A+';",
+            "    let sleep = 0;",
+            "    while (bugCount > 0) {",
+            "        fixBug();",
+            "        coffee.drink();",
+            "        if (energy < 10) throw new Error('Burnout');",
+            "    }",
+            "    return submitToProfessor();",
+            "}",
+            "",
+            "async function fixBug() {",
+            "    await stackOverflow.search('TypeError');",
+            "    const solution = copyAndPaste();",
+            "    if (!solution.works) {",
+            "        console.error('Why is this not working!?');",
+            "        // FIXME: please work",
+            "    }",
+            "}",
+            "// ... more complex logic ...",
+            "module.exports = doAssignment;"
+        ];
+
+        for (let i = 0; i < codeLines.length; i++) {
+            // 왼쪽 열
+            ctx.fillText(codeLines[i], 20, 30 + i * 25);
+            // 가운데 열
+            ctx.fillText(codeLines[i], 320, 30 + i * 25);
+            // 오른쪽 열
+            ctx.fillText(codeLines[i], 620, 30 + i * 25);
+        }
     }
 
     for (let c = 0; c < bricks.length; c++) {
@@ -544,12 +569,12 @@ function drawBoss() {
 
     if (boss.phase === 2) {
         const elapsed = Date.now() - boss.appearanceStartTime;
-        
+
         ctx.save();
         const shakeX = (Math.random() - 0.5) * 10;
         const shakeY = (Math.random() - 0.5) * 10;
         ctx.translate(shakeX, shakeY);
-        
+
         ctx.fillStyle = "rgba(255, 0, 0, 0.2)";
         ctx.fillRect(-10, -10, canvas.width + 20, canvas.height + 20);
 
@@ -574,7 +599,7 @@ function drawBoss() {
         ctx.fillStyle = "white";
         ctx.fillRect(boss.x - 40, boss.y - 50, 80, 10);
         ctx.fillStyle = "red";
-        ctx.fillRect(boss.x - 40, boss.y - 50, (boss.hp / 20) * 80, 10);
+        ctx.fillRect(boss.x - 40, boss.y - 50, Math.max(0, boss.hp / (boss.maxHp || 20)) * 80, 10);
     }
 }
 
