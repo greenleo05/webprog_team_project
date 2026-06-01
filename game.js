@@ -86,19 +86,27 @@ const paddle = {
     width: 150,
     x: (canvas.width - 150) / 2,
     y: canvas.height - 80,
-    color: "#ff69b4"
+    color: "#ff69b4",
+    debuffTimer: 0
 };
 
-const ball = {
-    x: canvas.width / 2,
-    y: paddle.y - 150,
-    dx: 3,
-    dy: -3,
-    radius: 10,
-    color: ballColorSelect ? ballColorSelect.value : "red",
-    isRespawning: false,
-    respawnTimer: 0
-};
+let balls = [];
+let items = [];
+let projectiles = [];
+let blackhole = null;
+
+function createBall(x, y, dx, dy, isRespawning = false) {
+    return {
+        x: x,
+        y: y,
+        dx: dx,
+        dy: dy,
+        radius: 10,
+        color: ballColorSelect ? ballColorSelect.value : "red",
+        isRespawning: isRespawning,
+        respawnTimer: isRespawning ? Date.now() : 0
+    };
+}
 
 let bricks = [];
 let boss = null;
@@ -239,7 +247,7 @@ const stages = [
             if (boss.phase === 1 && checkAllBricksCleared()) {
                 boss.phase = 2;
                 boss.appearanceStartTime = Date.now();
-                ball.dy = Math.abs(ball.dy);
+                balls.forEach(b => { if (!b.isRespawning) b.dy = Math.abs(b.dy); });
             }
 
             if (boss.phase === 2) {
@@ -247,13 +255,47 @@ const stages = [
                 if (elapsed > 3000) {
                     boss.phase = 3;
                     boss.active = true;
-                    ball.dy = -Math.abs(ball.dy);
+                    boss.lastItemDrop = Date.now();
+                    boss.lastProjectile = Date.now();
+                    balls.forEach(b => { if (!b.isRespawning) b.dy = -Math.abs(b.dy); });
                 }
             }
 
             if (boss.active && boss.phase === 3) {
                 boss.x += boss.dx;
                 if (boss.x > canvas.width - boss.radius || boss.x < boss.radius) boss.dx *= -1;
+
+                const now = Date.now();
+                // 1. 아이템 드랍 (8초)
+                if (now - boss.lastItemDrop > 8000) {
+                    items.push({ x: boss.x, y: boss.y, dy: 2, radius: 15 });
+                    boss.lastItemDrop = now;
+                }
+
+                // 2. 투사체(콩알탄) 패턴 (3초)
+                if (now - boss.lastProjectile > 3000) {
+                    if (Math.random() > 0.7) {
+                        projectiles.push({
+                            type: 'debuff',
+                            x: boss.x, y: boss.y,
+                            dx: 0, dy: 3,
+                            radius: 15, text: "F"
+                        });
+                    } else {
+                        projectiles.push({
+                            type: 'quote',
+                            x: boss.x + (Math.random() - 0.5) * 160, y: boss.y + 60 + Math.random() * 50,
+                            dx: 0, dy: 0,
+                            width: 70, height: 35, text: '""'
+                        });
+                    }
+                    boss.lastProjectile = now;
+                }
+
+                // 3. 블랙홀 생성 (체력 50% 이하)
+                if (boss.hp <= boss.maxHp / 2 && !blackhole) {
+                    blackhole = { x: canvas.width / 2, y: canvas.height / 2 - 50, radius: 60, createdAt: now };
+                }
             }
         },
         isCleared: () => boss && boss.phase === 3 && boss.hp <= 0
@@ -284,7 +326,7 @@ document.addEventListener("mousemove", mouseMoveHandler, false);
 
 function mouseMoveHandler(e) {
     if (isPaused) return; // 일시정지 중 조작 방지
-    if (ball.isRespawning) return; // 공이 깜빡이는 동안 바 움직임 고정
+    if (balls.some(b => b.isRespawning)) return; // 공이 깜빡이는 동안 바 움직임 고정
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
     const relativeX = (e.clientX - rect.left) * scaleX;
@@ -349,7 +391,9 @@ if (mainStartBtn) mainStartBtn.addEventListener("click", () => {
     }
 });
 
-if (ballColorSelect) ballColorSelect.addEventListener("change", (e) => ball.color = e.target.value);
+if (ballColorSelect) ballColorSelect.addEventListener("change", (e) => {
+    balls.forEach(b => b.color = e.target.value);
+});
 if (paddleColorSelect) paddleColorSelect.addEventListener("change", (e) => paddle.color = e.target.value);
 
 function updateGameMode(mode) {
@@ -404,15 +448,13 @@ function initStage(index) {
     if (stageNameDisplay) stageNameDisplay.innerText = stage.name;
     gameContainer.style.backgroundColor = stage.bgColor;
 
-    ball.x = canvas.width / 2;
-    ball.y = paddle.y - 150; // 공이 더 높은 곳에서 생성되도록 수정
-    ball.dx = 0;
-    ball.dy = 0;
-    ball.color = ballColorSelect ? ballColorSelect.value : "red";
-    ball.isRespawning = true;
-    ball.respawnTimer = Date.now();
+    balls = [createBall(canvas.width / 2, paddle.y - 150, 0, 0, true)];
+    items = [];
+    projectiles = [];
+    blackhole = null;
 
     paddle.x = (canvas.width - paddle.width) / 2;
+    paddle.debuffTimer = 0;
 
     score = 0;
     if (scoreDisplay) scoreDisplay.innerText = score;
@@ -445,38 +487,106 @@ function drawPixelBlock(ctx, x, y, w, h, baseColor) {
 }
 
 // 6. 그리기 로직
-function drawBall() {
-    const size = ball.radius * 2;
-    const px = ball.x - ball.radius;
-    const py = ball.y - ball.radius;
+function drawBalls() {
+    balls.forEach(ball => {
+        const size = ball.radius * 2;
+        const px = ball.x - ball.radius;
+        const py = ball.y - ball.radius;
 
-    if (ball.isRespawning) {
-        // 깜빡임 효과 (150ms 간격으로 on/off)
-        const elapsed = Date.now() - ball.respawnTimer;
-        if (Math.floor(elapsed / 150) % 2 === 0) {
+        if (ball.isRespawning) {
+            const elapsed = Date.now() - ball.respawnTimer;
+            if (Math.floor(elapsed / 150) % 2 === 0) {
+                drawPixelBlock(ctx, px, py, size, size, ball.color);
+            }
+            if (elapsed > 1000) {
+                ball.isRespawning = false;
+                ball.dx = 0;
+                ball.dy = BASE_SPEED;
+            }
+        } else {
             drawPixelBlock(ctx, px, py, size, size, ball.color);
         }
+    });
+}
 
-        // 1초(1000ms) 대기 후 발사
-        if (elapsed > 1000) {
-            ball.isRespawning = false;
-            ball.dx = 0; // 곧바로 아래로 떨어지게 설정
-            ball.dy = BASE_SPEED;
+function drawItems() {
+    items.forEach(item => {
+        ctx.fillStyle = "#FFD700";
+        ctx.font = "bold 20px Consolas";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("A+", item.x, item.y);
+        ctx.textAlign = "left";
+        ctx.textBaseline = "alphabetic";
+    });
+}
+
+function drawProjectiles() {
+    projectiles.forEach(p => {
+        if (p.type === 'debuff') {
+            ctx.fillStyle = "#ff0000";
+            ctx.font = "bold 24px Consolas";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(p.text, p.x, p.y);
+            ctx.textAlign = "left";
+            ctx.textBaseline = "alphabetic";
+        } else if (p.type === 'quote') {
+            let left = p.x - p.width / 2;
+            let top = p.y - p.height / 2;
+
+            ctx.fillStyle = "#333333";
+            ctx.fillRect(left, top, p.width, p.height);
+            
+            ctx.strokeStyle = "#ff0000";
+            ctx.lineWidth = 2;
+            ctx.strokeRect(left, top, p.width, p.height);
+
+            ctx.fillStyle = "#ff0000";
+            ctx.font = "bold 20px Consolas";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(p.text, p.x, p.y);
+            ctx.textAlign = "left";
+            ctx.textBaseline = "alphabetic";
         }
-    } else {
-        drawPixelBlock(ctx, px, py, size, size, ball.color);
+    });
+}
+
+function drawBlackhole() {
+    if (blackhole) {
+        const elapsed = Date.now() - blackhole.createdAt;
+        ctx.save();
+        ctx.translate(blackhole.x, blackhole.y);
+        ctx.rotate(elapsed / 200);
+        ctx.fillStyle = "rgba(75, 0, 130, 0.4)";
+        ctx.beginPath();
+        ctx.arc(0, 0, blackhole.radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#fff";
+        ctx.font = "14px Consolas";
+        ctx.textAlign = "center";
+        ctx.fillText("while(true)", 0, 5);
+        ctx.restore();
     }
 }
 
 function drawPaddle() {
-    // 패들 아래에 마법소녀를 배치
+    // 패들 디버프 원복 체크
+    if (paddle.debuffTimer > 0) {
+        if (Date.now() - paddle.debuffTimer > 5000) {
+            paddle.debuffTimer = 0;
+            paddle.width = 150;
+        }
+    }
+
     if (processedImg && processedImg.complete && processedImg.naturalWidth !== 0) {
         const imgW = 90;
         const imgH = 90;
         ctx.drawImage(processedImg, paddle.x + paddle.width / 2 - imgW / 2, paddle.y + 15, imgW, imgH);
     }
 
-    drawPixelBlock(ctx, paddle.x, paddle.y, paddle.width, paddle.height, paddle.color);
+    drawPixelBlock(ctx, paddle.x, paddle.y, paddle.width, paddle.height, paddle.debuffTimer > 0 ? "#7b68ee" : paddle.color);
 }
 
 function drawBricks() {
@@ -607,90 +717,89 @@ function drawBoss() {
 function collisionDetection() {
     const stage = stages[currentStageIndex];
 
-    for (let c = 0; c < bricks.length; c++) {
-        for (let r = 0; r < bricks[c].length; r++) {
-            let b = bricks[c][r];
-            if (b && b.status > 0) {
-                let bw = brickWidth;
-                let bh = brickHeight;
+    balls.forEach(ball => {
+        for (let c = 0; c < bricks.length; c++) {
+            for (let r = 0; r < bricks[c].length; r++) {
+                let b = bricks[c][r];
+                if (b && b.status > 0 && b.type !== 'empty') {
+                    let bw = brickWidth;
+                    let bh = brickHeight;
 
-                // 원형-사각형 최단 거리(Closest Point) 계산
-                let testX = ball.x;
-                let testY = ball.y;
+                    let testX = ball.x;
+                    let testY = ball.y;
 
-                if (ball.x < b.x) testX = b.x;
-                else if (ball.x > b.x + bw) testX = b.x + bw;
+                    if (ball.x < b.x) testX = b.x;
+                    else if (ball.x > b.x + bw) testX = b.x + bw;
 
-                if (ball.y < b.y) testY = b.y;
-                else if (ball.y > b.y + bh) testY = b.y + bh;
+                    if (ball.y < b.y) testY = b.y;
+                    else if (ball.y > b.y + bh) testY = b.y + bh;
 
-                let distX = ball.x - testX;
-                let distY = ball.y - testY;
-                let distance = Math.sqrt((distX * distX) + (distY * distY));
+                    let distX = ball.x - testX;
+                    let distY = ball.y - testY;
+                    let distance = Math.sqrt((distX * distX) + (distY * distY));
 
-                if (distance <= ball.radius) {
-                    // 밀어내기 (Overlap resolution)
-                    let overlap = ball.radius - distance;
-                    if (distance > 0) {
-                        ball.x += (distX / distance) * overlap;
-                        ball.y += (distY / distance) * overlap;
+                    if (distance <= ball.radius) {
+                        let overlap = ball.radius - distance;
+                        if (distance > 0) {
+                            ball.x += (distX / distance) * overlap;
+                            ball.y += (distY / distance) * overlap;
 
-                        // 벡터 반사
-                        let nx = distX / distance;
-                        let ny = distY / distance;
-                        let dot = ball.dx * nx + ball.dy * ny;
-                        if (dot < 0) { // 공이 벽돌을 향해 이동 중일 때만 반사
-                            ball.dx -= 2 * dot * nx;
-                            ball.dy -= 2 * dot * ny;
+                            let nx = distX / distance;
+                            let ny = distY / distance;
+                            let dot = ball.dx * nx + ball.dy * ny;
+                            if (dot < 0) {
+                                ball.dx -= 2 * dot * nx;
+                                ball.dy -= 2 * dot * ny;
+                            }
+                        } else {
+                            ball.y -= overlap;
+                            ball.dy = -Math.abs(ball.dy);
                         }
-                    } else {
-                        // 공의 중심이 블록 모서리 내부에 완벽히 겹쳤을 때의 예외 처리
-                        ball.y -= overlap;
-                        ball.dy = -Math.abs(ball.dy);
+
+                        if (b.type === 'troll') {
+                            b.status = 0;
+                            score -= 50;
+                            if (scoreDisplay) scoreDisplay.innerText = score;
+                        } else if (b.type !== 'bugcode' || (b.type === 'bugcode' && boss.phase === 1)) {
+                            b.hp--;
+                            b.status = b.hp;
+                            if (b.hp <= 0) {
+                                score += (b.type === 'food' ? 50 : 10);
+                                if (scoreDisplay) scoreDisplay.innerText = score;
+                            }
+                        }
                     }
+                }
+            }
+        }
 
-                    b.hp--;
-                    b.status = b.hp;
+        if (boss && boss.active && boss.phase === 3) {
+            let dx = ball.x - boss.x;
+            let dy = ball.y - boss.y;
+            let distance = Math.sqrt(dx * dx + dy * dy);
+            if (distance < ball.radius + boss.radius) {
+                let overlap = (ball.radius + boss.radius) - distance;
+                let nx = dx / distance;
+                let ny = dy / distance;
 
-                    if (b.hp <= 0) {
-                        score += (b.type === 'food' ? 50 : 10);
+                ball.x += nx * overlap;
+                ball.y += ny * overlap;
+
+                let dot = ball.dx * nx + ball.dy * ny;
+                if (dot < 0) {
+                    ball.dx -= 2 * dot * nx;
+                    ball.dy -= 2 * dot * ny;
+
+                    const now = Date.now();
+                    if (!boss.lastHitTime || now - boss.lastHitTime > 200) {
+                        boss.hp--;
+                        score += 10;
                         if (scoreDisplay) scoreDisplay.innerText = score;
                     }
                 }
             }
         }
-    }
-
-    if (boss && boss.active && boss.phase === 3) {
-        let dx = ball.x - boss.x;
-        let dy = ball.y - boss.y;
-        let distance = Math.sqrt(dx * dx + dy * dy);
-        if (distance < ball.radius + boss.radius) {
-            // 원형 보스와의 충돌 시 물리적 반사 및 겹침 밀어내기
-            let overlap = (ball.radius + boss.radius) - distance;
-            let nx = dx / distance;
-            let ny = dy / distance;
-
-            ball.x += nx * overlap;
-            ball.y += ny * overlap;
-
-            let dot = ball.dx * nx + ball.dy * ny;
-            if (dot < 0) {
-                ball.dx -= 2 * dot * nx;
-                ball.dy -= 2 * dot * ny;
-
-                const now = Date.now();
-                // 200ms 단위로만 데미지 판정
-                if (!boss.lastHitTime || now - boss.lastHitTime > 200) {
-                    boss.hp--;
-                    score += 10;
-                    if (scoreDisplay) scoreDisplay.innerText = score;
-                    boss.lastHitTime = now;
-                }
-            }
-        }
-    }
-
+    });
     if (stage.isCleared()) {
         isGameRunning = false;
         cancelAnimationFrame(animationId);
@@ -786,7 +895,6 @@ function showMainScreen(title, desc, mode = "next") {
 function draw() {
     if (!isGameRunning || isPaused) return;
 
-    // 0. 타이머 및 스테이지 업데이트 처리
     const now = Date.now();
     if (now - lastTime >= 1000) {
         if (timeLeft > 0) {
@@ -800,98 +908,201 @@ function draw() {
         stages[currentStageIndex].update();
     }
 
-    // 1. 공 위치 이동
-    if (!ball.isRespawning) {
-        ball.x += ball.dx;
-        ball.y += ball.dy;
-    }
-
-    // 2. 화면 경계(벽) 충돌 정밀 처리 (Clamp)
-    if (ball.x < ball.radius) {
-        ball.x = ball.radius;
-        ball.dx = Math.abs(ball.dx);
-    } else if (ball.x > canvas.width - ball.radius) {
-        ball.x = canvas.width - ball.radius;
-        ball.dx = -Math.abs(ball.dx);
-    }
-
-    if (ball.y < ball.radius) {
-        ball.y = ball.radius;
-        ball.dy = Math.abs(ball.dy);
-    } else if (ball.y > canvas.height - ball.radius) {
-        if (currentStageIndex === 2) {
-            // 바닥에 튕기는 특수 스테이지
-            ball.y = canvas.height - ball.radius;
-            ball.dy = -Math.abs(ball.dy);
-        } else {
-            // 바닥에 떨어짐 (목숨 감소 로직)
-            lives--;
-            if (livesDisplay) livesDisplay.innerText = lives;
-
-            if (lives > 0) {
-                paddle.x = (canvas.width - paddle.width) / 2; // 바 중앙 고정
-                ball.x = canvas.width / 2;
-                ball.y = paddle.y - 150;
-                ball.dx = 0;
-                ball.dy = 0;
-                ball.isRespawning = true;
-                ball.respawnTimer = Date.now();
+    // 아이템 및 투사체 업데이트
+    for (let i = items.length - 1; i >= 0; i--) {
+        let item = items[i];
+        item.y += item.dy;
+        if (item.y + item.radius >= paddle.y && item.y - item.radius <= paddle.y + paddle.height &&
+            item.x + item.radius >= paddle.x && item.x - item.radius <= paddle.x + paddle.width) {
+            if (balls.length > 0) {
+                let refBall = balls[0];
+                balls.push(createBall(refBall.x, refBall.y, -refBall.dx, -Math.abs(refBall.dy), false));
             } else {
-                isGameRunning = false;
-                cancelAnimationFrame(animationId);
-                showMainScreen("게임 오버", "다시 도전해보세요!", "return");
-                currentStageIndex = 0;
-                return;
+                balls.push(createBall(canvas.width / 2, paddle.y - 150, BASE_SPEED / Math.SQRT2, -BASE_SPEED / Math.SQRT2, true));
+            }
+            items.splice(i, 1);
+            score += 50;
+            if (scoreDisplay) scoreDisplay.innerText = score;
+        } else if (item.y > canvas.height) {
+            items.splice(i, 1);
+        }
+    }
+
+    for (let i = projectiles.length - 1; i >= 0; i--) {
+        let p = projectiles[i];
+        p.x += p.dx;
+        p.y += p.dy;
+
+        let hit = false;
+        
+        if (p.type === 'debuff') {
+            if (p.y + p.radius >= paddle.y && p.y - p.radius <= paddle.y + paddle.height &&
+                p.x + p.radius >= paddle.x && p.x - p.radius <= paddle.x + paddle.width) {
+                paddle.debuffTimer = now;
+                paddle.width = 75;
+                hit = true;
+            }
+        } else if (p.type === 'quote') {
+            let pLeft = p.x - p.width / 2;
+            let pRight = p.x + p.width / 2;
+            let pTop = p.y - p.height / 2;
+            let pBottom = p.y + p.height / 2;
+
+            for (let j = balls.length - 1; j >= 0; j--) {
+                let ball = balls[j];
+                let testX = ball.x;
+                let testY = ball.y;
+
+                if (ball.x < pLeft) testX = pLeft;
+                else if (ball.x > pRight) testX = pRight;
+
+                if (ball.y < pTop) testY = pTop;
+                else if (ball.y > pBottom) testY = pBottom;
+
+                let distX = ball.x - testX;
+                let distY = ball.y - testY;
+                let distance = Math.sqrt((distX * distX) + (distY * distY));
+
+                if (distance <= ball.radius && !ball.isRespawning) {
+                    let overlap = ball.radius - distance;
+                    if (distance > 0) {
+                        ball.x += (distX / distance) * overlap;
+                        ball.y += (distY / distance) * overlap;
+                        let nx = distX / distance;
+                        let ny = distY / distance;
+                        let dot = ball.dx * nx + ball.dy * ny;
+                        if (dot < 0) {
+                            ball.dx -= 2 * dot * nx;
+                            ball.dy -= 2 * dot * ny;
+                        }
+                    } else {
+                        ball.y -= overlap;
+                        ball.dy = -Math.abs(ball.dy);
+                    }
+                    
+                    if (p.text === '""') {
+                        p.text = "''";
+                        score += 10;
+                    } else {
+                        hit = true;
+                        score += 20;
+                    }
+                    if (scoreDisplay) scoreDisplay.innerText = score;
+                }
+            }
+        }
+
+        if (hit || p.y > canvas.height) {
+            projectiles.splice(i, 1);
+        }
+    }
+
+    // 공 업데이트
+    for (let i = balls.length - 1; i >= 0; i--) {
+        let ball = balls[i];
+
+        if (!ball.isRespawning) {
+            if (blackhole) {
+                let dx = blackhole.x - ball.x;
+                let dy = blackhole.y - ball.y;
+                let dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist > 10 && dist < 150) {
+                    ball.dx += (dx / dist) * 0.15;
+                    ball.dy += (dy / dist) * 0.15;
+
+                    let speed = Math.sqrt(ball.dx * ball.dx + ball.dy * ball.dy);
+                    ball.dx = (ball.dx / speed) * BASE_SPEED;
+                    ball.dy = (ball.dy / speed) * BASE_SPEED;
+                }
+            }
+
+            ball.x += ball.dx;
+            ball.y += ball.dy;
+        }
+
+        if (ball.x < ball.radius) {
+            ball.x = ball.radius;
+            ball.dx = Math.abs(ball.dx);
+        } else if (ball.x > canvas.width - ball.radius) {
+            ball.x = canvas.width - ball.radius;
+            ball.dx = -Math.abs(ball.dx);
+        }
+
+        if (ball.y < ball.radius) {
+            ball.y = ball.radius;
+            ball.dy = Math.abs(ball.dy);
+        } else if (ball.y > canvas.height - ball.radius) {
+            if (currentStageIndex === 2) {
+                ball.y = canvas.height - ball.radius;
+                ball.dy = -Math.abs(ball.dy);
+            } else {
+                ball.markForDeletion = true;
+            }
+        }
+
+        let testX = ball.x;
+        let testY = ball.y;
+        if (ball.x < paddle.x) testX = paddle.x;
+        else if (ball.x > paddle.x + paddle.width) testX = paddle.x + paddle.width;
+        if (ball.y < paddle.y) testY = paddle.y;
+        else if (ball.y > paddle.y + paddle.height) testY = paddle.y + paddle.height;
+
+        let distX = ball.x - testX;
+        let distY = ball.y - testY;
+        let distance = Math.sqrt((distX * distX) + (distY * distY));
+
+        if (distance <= ball.radius && !ball.isRespawning) {
+            let overlap = ball.radius - distance;
+            if (distance > 0) {
+                ball.x += (distX / distance) * overlap;
+                ball.y += (distY / distance) * overlap;
+            }
+            if (testY === paddle.y) {
+                let hitPoint = ball.x - (paddle.x + paddle.width / 2);
+                let normalizedHitPoint = hitPoint / (paddle.width / 2);
+                let bounceAngle = normalizedHitPoint * (Math.PI / 3);
+                ball.dx = BASE_SPEED * Math.sin(bounceAngle);
+                ball.dy = -Math.abs(BASE_SPEED * Math.cos(bounceAngle));
+            } else {
+                if (testX === paddle.x || testX === paddle.x + paddle.width) {
+                    ball.dx = -ball.dx;
+                } else {
+                    ball.dy = Math.abs(ball.dy);
+                }
             }
         }
     }
 
-    // 3. 패들 충돌 정밀 처리 (Circle-AABB)
-    let testX = ball.x;
-    let testY = ball.y;
-
-    if (ball.x < paddle.x) testX = paddle.x;
-    else if (ball.x > paddle.x + paddle.width) testX = paddle.x + paddle.width;
-
-    if (ball.y < paddle.y) testY = paddle.y;
-    else if (ball.y > paddle.y + paddle.height) testY = paddle.y + paddle.height;
-
-    let distX = ball.x - testX;
-    let distY = ball.y - testY;
-    let distance = Math.sqrt((distX * distX) + (distY * distY));
-
-    if (distance <= ball.radius && !ball.isRespawning) {
-        let overlap = ball.radius - distance;
-        if (distance > 0) {
-            ball.x += (distX / distance) * overlap;
-            ball.y += (distY / distance) * overlap;
-        }
-
-        // 어디에 부딪혔는지 판별
-        if (testY === paddle.y) {
-            // 윗면 충돌 (유도탄 앵글 적용)
-            let hitPoint = ball.x - (paddle.x + paddle.width / 2);
-            let normalizedHitPoint = hitPoint / (paddle.width / 2);
-            let bounceAngle = normalizedHitPoint * (Math.PI / 3);
-            ball.dx = BASE_SPEED * Math.sin(bounceAngle);
-            ball.dy = -Math.abs(BASE_SPEED * Math.cos(bounceAngle));
-        } else {
-            // 옆면 혹은 아랫면 충돌
-            if (testX === paddle.x || testX === paddle.x + paddle.width) {
-                ball.dx = -ball.dx;
-            } else {
-                ball.dy = Math.abs(ball.dy); // 아랫면을 때리면 아래로 튕김
-            }
+    for (let i = balls.length - 1; i >= 0; i--) {
+        if (balls[i].markForDeletion) {
+            balls.splice(i, 1);
         }
     }
 
-    // 4. 화면 그리기 및 기타 객체 충돌 (벽돌, 보스)
+    if (balls.length === 0) {
+        lives--;
+        if (livesDisplay) livesDisplay.innerText = lives;
+        if (lives > 0) {
+            paddle.x = (canvas.width - paddle.width) / 2;
+            balls.push(createBall(canvas.width / 2, paddle.y - 150, 0, 0, true));
+        } else {
+            isGameRunning = false;
+            cancelAnimationFrame(animationId);
+            showMainScreen("게임 오버", "다시 도전해보세요!", "return");
+            currentStageIndex = 0;
+            return;
+        }
+    }
+
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+    drawBlackhole();
     drawBricks();
     drawBoss();
+    drawItems();
+    drawProjectiles();
     drawPaddle();
-    drawBall();
+    drawBalls();
 
     collisionDetection();
 
