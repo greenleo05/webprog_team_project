@@ -17,6 +17,8 @@ const mainDesc = document.getElementById("mainDesc");
 const ballColorSelect = document.getElementById("ball-color");
 const paddleColorSelect = document.getElementById("paddle-color");
 const bgmVolumeSlider = document.getElementById("bgm-volume");
+const gameModeSelect = document.getElementById("game-mode");
+const mainGameModeSelect = document.getElementById("main-game-mode");
 const gameContainer = document.getElementById("game-container");
 const uiPanel = document.getElementById("ui-panel");
 
@@ -60,6 +62,7 @@ magicalGirlImg.onload = () => {
 magicalGirlImg.src = "magical_girl.png";
 
 // 2. 게임 상태 변수
+let isDevMode = true;
 let isGameRunning = false;
 let isPaused = false;
 let animationId;
@@ -118,8 +121,8 @@ const stages = [
             bricks = [];
             boss = null;
             paddle.width = 150;
-            const rowCount = 2;
-            const colCount = 5;
+            const rowCount = isDevMode ? 2 : 5;
+            const colCount = isDevMode ? 5 : 9;
             for (let c = 0; c < colCount; c++) {
                 bricks[c] = [];
                 for (let r = 0; r < rowCount; r++) {
@@ -140,8 +143,8 @@ const stages = [
             bricks = [];
             boss = null;
             paddle.width = 150;
-            const rowCount = 2;
-            const colCount = 4;
+            const rowCount = isDevMode ? 2 : 6;
+            const colCount = isDevMode ? 4 : 8;
             for (let c = 0; c < colCount; c++) {
                 bricks[c] = [];
                 for (let r = 0; r < rowCount; r++) {
@@ -161,8 +164,8 @@ const stages = [
             bricks = [];
             boss = null;
             paddle.width = 250;
-            const rowCount = 1;
-            const colCount = 5;
+            const rowCount = isDevMode ? 1 : 4;
+            const colCount = isDevMode ? 5 : 9;
             for (let c = 0; c < colCount; c++) {
                 bricks[c] = [];
                 for (let r = 0; r < rowCount; r++) {
@@ -182,12 +185,13 @@ const stages = [
             bricks = [];
             boss = null;
             paddle.width = 150;
-            const rowCount = 2;
-            const colCount = 5;
+            const rowCount = isDevMode ? 2 : 5;
+            const colCount = isDevMode ? 5 : 9;
+            const trollProb = isDevMode ? 0.3 : 0.6;
             for (let c = 0; c < colCount; c++) {
                 bricks[c] = [];
                 for (let r = 0; r < rowCount; r++) {
-                    let type = Math.random() < 0.3 ? 'troll' : 'normal';
+                    let type = Math.random() < trollProb ? 'troll' : 'normal';
                     bricks[c][r] = { x: 0, y: 0, status: 1, hp: 1, type: type, offsetX: 0 };
                 }
             }
@@ -213,11 +217,12 @@ const stages = [
         init: () => {
             bricks = [];
             paddle.width = 150;
-            // 최종 보스 체력 20으로 상향
-            boss = { phase: 1, active: false, hp: 20, x: canvas.width / 2, y: 150, radius: 40, dx: 3, dy: 1 };
+            // 최종 보스 체력 유저 모드 시 상향
+            let bossHp = isDevMode ? 20 : 50;
+            boss = { phase: 1, active: false, hp: bossHp, x: canvas.width / 2, y: 150, radius: 40, dx: 3, dy: 1 };
 
-            const rowCount = 2;
-            const colCount = 3;
+            const rowCount = isDevMode ? 2 : 4;
+            const colCount = isDevMode ? 3 : 6;
             for (let c = 0; c < colCount; c++) {
                 bricks[c] = [];
                 for (let r = 0; r < rowCount; r++) {
@@ -346,6 +351,16 @@ if (mainStartBtn) mainStartBtn.addEventListener("click", () => {
 
 if (ballColorSelect) ballColorSelect.addEventListener("change", (e) => ball.color = e.target.value);
 if (paddleColorSelect) paddleColorSelect.addEventListener("change", (e) => paddle.color = e.target.value);
+
+function updateGameMode(mode) {
+    isDevMode = (mode === 'dev');
+    if (gameModeSelect && gameModeSelect.value !== mode) gameModeSelect.value = mode;
+    if (mainGameModeSelect && mainGameModeSelect.value !== mode) mainGameModeSelect.value = mode;
+}
+
+if (gameModeSelect) gameModeSelect.addEventListener("change", (e) => updateGameMode(e.target.value));
+if (mainGameModeSelect) mainGameModeSelect.addEventListener("change", (e) => updateGameMode(e.target.value));
+
 if (bgmVolumeSlider) bgmVolumeSlider.addEventListener("input", (e) => {
     const volume = e.target.value;
     // 추후 배경음악이 추가되면 아래 코드를 통해 볼륨을 조절할 수 있습니다.
