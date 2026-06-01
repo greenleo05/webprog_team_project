@@ -93,6 +93,9 @@ const paddle = {
 let balls = [];
 let items = [];
 let projectiles = [];
+let meteors = [];
+let ultimateGauge = 0;
+const MAX_GAUGE = 100;
 let blackhole = null;
 
 function createBall(x, y, dx, dy, isRespawning = false) {
@@ -110,6 +113,21 @@ function createBall(x, y, dx, dy, isRespawning = false) {
 
 let bricks = [];
 let boss = null;
+let particles = [];
+
+const profQuotes = [
+    "display:flex",
+    "addEventListener",
+    "forEach",
+    "await fetch()"
+];
+
+const teamQuotes = [
+    "저 오늘 회의에 못 갈 것 같습니다ㅠㅠ",
+    "자료조사.txt 출처 나무위키",
+    "아 그거 깜빡했는데 어떡하죠?",
+    "아... 내일까지라고요?"
+];
 
 // 벽돌 기본 설정
 const brickWidth = 75;
@@ -134,8 +152,10 @@ const stages = [
             for (let c = 0; c < colCount; c++) {
                 bricks[c] = [];
                 for (let r = 0; r < rowCount; r++) {
-                    let hp = (r === 0) && (c % 2 === 0) ? 2 : 1;
-                    bricks[c][r] = { x: 0, y: 0, status: hp, hp: hp, type: 'passenger', offsetX: 0 };
+                    let isTroll = Math.random() < 0.15;
+                    let hp = isTroll ? 3 : 1;
+                    let type = isTroll ? 'troll_hard' : 'passenger';
+                    bricks[c][r] = { x: 0, y: 0, status: hp, hp: hp, type: type, offsetX: 0 };
                 }
             }
         },
@@ -156,7 +176,11 @@ const stages = [
             for (let c = 0; c < colCount; c++) {
                 bricks[c] = [];
                 for (let r = 0; r < rowCount; r++) {
-                    bricks[c][r] = { x: 0, y: 0, status: 1, hp: 1, type: 'sleepy', offsetX: 0 };
+                    let isTroll = Math.random() < 0.15;
+                    let hp = isTroll ? 3 : 1;
+                    let type = isTroll ? 'troll_hard' : 'sleepy';
+                    let quote = profQuotes[Math.floor(Math.random() * profQuotes.length)];
+                    bricks[c][r] = { x: 0, y: 0, status: hp, hp: hp, type: type, offsetX: 0, text: quote };
                 }
             }
         },
@@ -177,7 +201,9 @@ const stages = [
             for (let c = 0; c < colCount; c++) {
                 bricks[c] = [];
                 for (let r = 0; r < rowCount; r++) {
-                    bricks[c][r] = { x: 0, y: 0, status: 1, hp: 1, type: 'food', offsetX: 0 };
+                    const foods = ['food_sandwich', 'food_cake', 'food_drink', 'food_orange'];
+                    let type = foods[Math.floor(Math.random() * foods.length)];
+                    bricks[c][r] = { x: 0, y: 0, status: 1, hp: 1, type: type, offsetX: 0 };
                 }
             }
         },
@@ -195,13 +221,24 @@ const stages = [
             paddle.width = 150;
             const rowCount = isDevMode ? 2 : 5;
             const colCount = isDevMode ? 5 : 9;
-            const trollProb = isDevMode ? 0.3 : 0.6;
+            const trollProb = isDevMode ? 0.1 : 0.2;
+            let hasTroll = false;
             for (let c = 0; c < colCount; c++) {
                 bricks[c] = [];
                 for (let r = 0; r < rowCount; r++) {
                     let type = Math.random() < trollProb ? 'troll' : 'normal';
-                    bricks[c][r] = { x: 0, y: 0, status: 1, hp: 1, type: type, offsetX: 0 };
+                    if (type === 'troll') hasTroll = true;
+                    let quote = teamQuotes[Math.floor(Math.random() * teamQuotes.length)];
+                    // 카톡 배치: 짝수행은 왼쪽, 홀수행은 오른쪽
+                    let isRight = r % 2 !== 0;
+                    // 블록 너비가 넓어지므로 그리기 시에 위치를 참조할 플래그
+                    bricks[c][r] = { x: 0, y: 0, status: 1, hp: 1, type: type, offsetX: 0, text: quote, isRight: isRight };
                 }
+            }
+            if (!hasTroll && colCount > 0 && rowCount > 0) {
+                let rc = Math.floor(Math.random() * colCount);
+                let rr = Math.floor(Math.random() * rowCount);
+                bricks[rc][rr].type = 'troll';
             }
         },
         update: () => {
@@ -209,13 +246,36 @@ const stages = [
             for (let c = 0; c < bricks.length; c++) {
                 for (let r = 0; r < bricks[c].length; r++) {
                     let b = bricks[c][r];
-                    if (b && b.status > 0 && b.type === 'troll') {
-                        b.offsetX = Math.sin(time + c + r) * 15;
+                    if (b && b.status > 0) {
+                        if (b.type === 'troll') {
+                            b.dropY = (b.dropY || 0) + 0.2; // 서서히 아래로 하강
+                            b.offsetX = Math.sin(time * 2 + c) * 20; // 격렬한 좌우 진동
+                            b.offsetY = Math.cos(time * 2 + r) * 10 + b.dropY;
+                            
+                            // 너무 아래로 내려와서 패들 라인에 닿으면 점수 페널티 후 파괴
+                            if (b.y && b.y > canvas.height - 150) {
+                                b.status = 0;
+                                score = Math.max(0, score - 100); // 큰 페널티
+                                if (scoreDisplay) scoreDisplay.innerText = score;
+                                // 터지는 이펙트
+                                for(let i=0; i<15; i++) {
+                                    particles.push({
+                                        x: b.x + (b.w || 75)/2, y: b.y + (b.h || 20)/2,
+                                        dx: (Math.random()-0.5)*10, dy: (Math.random()-0.5)*10,
+                                        life: 30, color: "#9370db"
+                                    });
+                                }
+                            }
+                        } else {
+                            // 일반 블록은 둥둥 떠다님
+                            b.offsetX = Math.sin(time * 0.5 + c) * 10;
+                            b.offsetY = Math.cos(time * 0.5 + r) * 10;
+                        }
                     }
                 }
             }
         },
-        isCleared: () => checkAllBricksCleared()
+        isCleared: () => checkAllBricksCleared(['troll'])
     },
     {
         time: "23:00",
@@ -302,10 +362,11 @@ const stages = [
     }
 ];
 
-function checkAllBricksCleared() {
+function checkAllBricksCleared(ignoreTypes = []) {
     for (let c = 0; c < bricks.length; c++) {
         for (let r = 0; r < bricks[c].length; r++) {
-            if (bricks[c][r] && bricks[c][r].status > 0) return false;
+            let b = bricks[c][r];
+            if (b && b.status > 0 && !ignoreTypes.includes(b.type)) return false;
         }
     }
     return true;
@@ -355,6 +416,11 @@ function togglePause() {
 document.addEventListener("keydown", (e) => {
     if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') {
         togglePause();
+    } else if (e.code === 'Space') {
+        if (isGameRunning && !isPaused && ultimateGauge >= MAX_GAUGE) {
+            ultimateGauge = 0;
+            spawnMeteors();
+        }
     }
 });
 
@@ -423,6 +489,7 @@ function startGame(stageIndex = -1) {
         if (livesDisplay) livesDisplay.innerText = lives;
         score = 0;
         if (scoreDisplay) scoreDisplay.innerText = score;
+        ultimateGauge = 0;
     }
 
     initStage(currentStageIndex);
@@ -446,7 +513,29 @@ function initStage(index) {
     const stage = stages[index];
     if (timeDisplay) timeDisplay.innerText = stage.time;
     if (stageNameDisplay) stageNameDisplay.innerText = stage.name;
-    gameContainer.style.backgroundColor = stage.bgColor;
+    
+    if (index === 0) {
+        // 투명도 레이어를 추가하여 벽돌이 잘 보이게 처리 (지하철)
+        canvas.style.backgroundImage = "linear-gradient(rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.5)), url('stage_0_bg.png')";
+        canvas.style.backgroundSize = "cover";
+        canvas.style.backgroundPosition = "center";
+        gameContainer.style.backgroundColor = "transparent";
+    } else if (index === 1) {
+        // 투명도 레이어를 추가하여 벽돌이 잘 보이게 처리 (강의실)
+        canvas.style.backgroundImage = "linear-gradient(rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.5)), url('stage_1_bg.png')";
+        canvas.style.backgroundSize = "cover";
+        canvas.style.backgroundPosition = "center";
+        gameContainer.style.backgroundColor = "transparent";
+    } else if (index === 2) {
+        // 투명도 레이어를 추가하여 벽돌이 잘 보이게 처리 (학식당)
+        canvas.style.backgroundImage = "linear-gradient(rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.5)), url('stage_2_bg.png')";
+        canvas.style.backgroundSize = "cover";
+        canvas.style.backgroundPosition = "center";
+        gameContainer.style.backgroundColor = "transparent";
+    } else {
+        canvas.style.backgroundImage = "none";
+        gameContainer.style.backgroundColor = stage.bgColor;
+    }
 
     balls = [createBall(canvas.width / 2, paddle.y - 150, 0, 0, true)];
     items = [];
@@ -537,7 +626,7 @@ function drawProjectiles() {
 
             ctx.fillStyle = "#333333";
             ctx.fillRect(left, top, p.width, p.height);
-            
+
             ctx.strokeStyle = "#ff0000";
             ctx.lineWidth = 2;
             ctx.strokeRect(left, top, p.width, p.height);
@@ -551,6 +640,207 @@ function drawProjectiles() {
             ctx.textBaseline = "alphabetic";
         }
     });
+}
+
+function spawnMeteors() {
+    const count = 10;
+    for (let i = 0; i < count; i++) {
+        meteors.push({
+            x: Math.random() * canvas.width,
+            y: -50 - Math.random() * 400,
+            seed: Math.random() * 1000,
+            dx: 0,
+            dy: 1.5 + Math.random() * 2,
+            radius: 15 + Math.random() * 10,
+            color: `hsl(${300 + Math.random() * 60}, 100%, 80%)`,
+            trail: []
+        });
+    }
+}
+
+function drawMeteors() {
+    for (let i = meteors.length - 1; i >= 0; i--) {
+        let m = meteors[i];
+        
+        m.x += Math.sin(Date.now() / 300 + m.seed) * 1.5;
+        m.y += m.dy;
+        
+        m.trail.push({x: m.x, y: m.y});
+        if (m.trail.length > 10) m.trail.shift();
+
+        for (let c = 0; c < bricks.length; c++) {
+            for (let r = 0; r < bricks[c].length; r++) {
+                let b = bricks[c][r];
+                if (b.status > 0 && b.type !== 'empty') {
+                    let bx = b.x + brickWidth / 2;
+                    let by = b.y + brickHeight / 2;
+                    let dist = Math.sqrt((m.x - bx)**2 + (m.y - by)**2);
+                    if (dist < m.radius + Math.max(brickWidth, brickHeight) / 2) {
+                        if (b.type !== 'troll' && b.type !== 'bugcode') {
+                            b.status = 0;
+                            b.hp = 0;
+                            score += (b.type === 'food' ? 50 : 10);
+                            if (scoreDisplay) scoreDisplay.innerText = score;
+                        } else if (b.type === 'bugcode' && boss && boss.phase !== 1) {
+                            b.status = 0; 
+                            b.hp = 0;
+                        }
+                    }
+                }
+            }
+        }
+        
+        if (boss && boss.active && boss.phase === 3) {
+            let dist = Math.sqrt((m.x - boss.x)**2 + (m.y - boss.y)**2);
+            if (dist < m.radius + boss.radius) {
+                boss.hp -= 2;
+                meteors.splice(i, 1);
+                continue;
+            }
+        }
+        
+        for (let p = projectiles.length - 1; p >= 0; p--) {
+            let proj = projectiles[p];
+            if (proj.type === 'quote') {
+                let dist = Math.sqrt((m.x - proj.x)**2 + (m.y - proj.y)**2);
+                if (dist < m.radius + proj.width/2) {
+                    projectiles.splice(p, 1);
+                }
+            }
+        }
+
+        ctx.beginPath();
+        if (m.trail.length > 0) {
+            ctx.moveTo(m.trail[0].x, m.trail[0].y);
+            for (let j = 1; j < m.trail.length; j++) {
+                let pt = m.trail[j];
+                ctx.lineTo(pt.x, pt.y);
+            }
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.4)";
+            ctx.lineWidth = m.radius / 3;
+            ctx.stroke();
+        }
+
+        ctx.save();
+        ctx.translate(m.x, m.y);
+        ctx.rotate(Date.now() / 500 + m.seed);
+        ctx.beginPath();
+        let spikes = 5;
+        let rot = Math.PI / 2 * 3;
+        let x = 0, y = 0;
+        let step = Math.PI / spikes;
+
+        ctx.moveTo(0, -m.radius);
+        for(let k = 0; k < spikes; k++){
+            x = Math.cos(rot) * m.radius;
+            y = Math.sin(rot) * m.radius;
+            ctx.lineTo(x, y);
+            rot += step;
+            x = Math.cos(rot) * (m.radius * 0.4);
+            y = Math.sin(rot) * (m.radius * 0.4);
+            ctx.lineTo(x, y);
+            rot += step;
+        }
+        ctx.lineTo(0, -m.radius);
+        ctx.closePath();
+        
+        ctx.shadowColor = m.color;
+        ctx.shadowBlur = 15;
+        ctx.fillStyle = "#fff";
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = m.color;
+        ctx.stroke();
+        ctx.restore();
+
+        if (m.y > canvas.height + 100) {
+            meteors.splice(i, 1);
+        }
+    }
+}
+
+function drawUltimateGauge() {
+    const barWidth = 16;
+    const barHeight = 250;
+    const x = canvas.width - barWidth - 15;
+    const y = (canvas.height - barHeight) / 2;
+
+    ctx.fillStyle = "#000";
+    ctx.fillRect(x, y, barWidth, barHeight);
+    
+    ctx.fillStyle = "#333";
+    ctx.fillRect(x + 2, y + 2, barWidth - 4, barHeight - 4);
+
+    ctx.fillStyle = "rgba(0,0,0,0.5)";
+    ctx.fillRect(x + barWidth - 5, y + 2, 3, barHeight - 4);
+    ctx.fillRect(x + 2, y + barHeight - 5, barWidth - 4, 3);
+
+    ctx.fillStyle = "rgba(255,255,255,0.2)";
+    ctx.fillRect(x + 2, y + 2, 3, barHeight - 4);
+    ctx.fillRect(x + 2, y + 2, barWidth - 4, 3);
+
+    const fillHeight = (ultimateGauge / MAX_GAUGE) * (barHeight - 4);
+    if (fillHeight > 0) {
+        const fillY = y + barHeight - 2 - fillHeight;
+        
+        let grad = ctx.createLinearGradient(0, y + barHeight, 0, y);
+        grad.addColorStop(0, "#ff69b4");
+        grad.addColorStop(1, "#ffd700");
+
+        ctx.fillStyle = grad;
+        ctx.fillRect(x + 2, fillY, barWidth - 4, fillHeight);
+        
+        ctx.fillStyle = "rgba(255,255,255,0.5)";
+        ctx.fillRect(x + 2, fillY, 3, fillHeight);
+        ctx.fillRect(x + 2, fillY, barWidth - 4, 3);
+    }
+
+    const heartX = x + barWidth / 2;
+    const heartY = y - 50;
+    let heartSize = 50;
+    
+    ctx.save();
+    if (ultimateGauge >= MAX_GAUGE) {
+        heartSize = 65 + Math.sin(Date.now() / 100) * 15;
+        const hue = (Date.now() / 10) % 360;
+        
+        ctx.shadowColor = `hsl(${hue}, 100%, 50%)`;
+        ctx.shadowBlur = 30;
+        ctx.fillStyle = "#fff"; 
+        
+        ctx.font = `bold ${heartSize}px Arial`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        
+        ctx.lineWidth = 5;
+        ctx.strokeStyle = `hsl(${hue}, 100%, 50%)`;
+        ctx.strokeText("♥", heartX, heartY);
+        ctx.fillText("♥", heartX, heartY);
+
+        for(let i=0; i<5; i++) {
+            let offset = (Date.now() / 200 + i * (Math.PI*2/5));
+            let px = heartX + Math.cos(offset) * 45;
+            let py = heartY + Math.sin(offset) * 45;
+            ctx.beginPath();
+            ctx.arc(px, py, 5, 0, Math.PI*2);
+            ctx.fillStyle = `hsl(${hue}, 100%, 80%)`;
+            ctx.fill();
+        }
+    } else {
+        ctx.shadowColor = "#ff1493";
+        ctx.shadowBlur = 15;
+        ctx.fillStyle = "#ff69b4";
+        
+        ctx.font = `bold ${heartSize}px Arial`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = "#fff";
+        ctx.strokeText("♥", heartX, heartY);
+        ctx.fillText("♥", heartX, heartY);
+    }
+    ctx.restore();
 }
 
 function drawBlackhole() {
@@ -636,7 +926,7 @@ function drawBricks() {
                 let bw = brickWidth;
                 let bh = brickHeight;
                 let bx = (c * (bw + brickPadding)) + brickOffsetLeft + (b.offsetX || 0);
-                let by = (r * (bh + brickPadding)) + brickOffsetTop;
+                let by = (r * (bh + brickPadding)) + brickOffsetTop + (b.offsetY || 0);
 
                 if (currentStageIndex === 4) {
                     bx = (c * (110)) + 60;
@@ -661,13 +951,169 @@ function drawBricks() {
                     ctx.stroke();
                     ctx.setLineDash([]);
                     ctx.closePath();
-                } else if (b.type === 'food') {
-                    drawPixelBlock(ctx, bx, by, bw, bh, "#ffb6c1");
-                } else if (b.type === 'troll') {
-                    drawPixelBlock(ctx, bx, by, bw, bh, "#8a2be2");
                 } else {
-                    let color = b.hp === 2 ? "#555555" : "#FF5733";
-                    drawPixelBlock(ctx, bx, by, bw, bh, color);
+                    let text = b.text || "";
+                    let isTroll = b.type === 'troll' || b.type === 'troll_hard';
+
+                    if (currentStageIndex === 0) { // Stage 1: 지하철 (네모난 사람)
+                        let renderW = 30;
+                        let renderH = 45;
+                        b.w = renderW;
+                        b.h = renderH;
+                        let bx1 = bx + (bw - renderW)/2;
+                        b.x = bx1;
+
+                        let baseColor = b.hp >= 2 ? "#696969" : (isTroll ? "#a9a9a9" : "#87cefa");
+                        
+                        ctx.fillStyle = baseColor;
+                        // 머리
+                        ctx.beginPath();
+                        ctx.arc(bx1 + renderW/2, by + 10, 10, 0, Math.PI*2);
+                        ctx.fill();
+                        // 몸통
+                        ctx.fillRect(bx1 + 2, by + 22, renderW - 4, 23); 
+                        // 어깨/팔
+                        ctx.strokeStyle = baseColor;
+                        ctx.lineWidth = 4;
+                        ctx.beginPath();
+                        ctx.moveTo(bx1 - 5, by + 30);
+                        ctx.lineTo(bx1 + 2, by + 22);
+                        ctx.lineTo(bx1 + renderW - 2, by + 22);
+                        ctx.lineTo(bx1 + renderW + 5, by + 30);
+                        ctx.stroke();
+
+                        if (isTroll) {
+                            ctx.fillStyle = "red";
+                            ctx.beginPath();
+                            ctx.moveTo(bx1 + renderW/2 - 8, by);
+                            ctx.lineTo(bx1 + renderW/2 - 4, by - 8);
+                            ctx.lineTo(bx1 + renderW/2, by);
+                            ctx.moveTo(bx1 + renderW/2, by);
+                            ctx.lineTo(bx1 + renderW/2 + 4, by - 8);
+                            ctx.lineTo(bx1 + renderW/2 + 8, by);
+                            ctx.fill();
+                        }
+                    } else if (currentStageIndex === 1) { // Stage 2: 강의실 (네모난 말풍선)
+                        let renderW = 120; // 말풍선 고정 길이 약간 늘림
+                        b.w = renderW; 
+                        
+                        let bgColor = isTroll ? "#ffcccb" : "#ffffff";
+                        ctx.fillStyle = bgColor;
+                        ctx.strokeStyle = isTroll ? "red" : "#888";
+                        ctx.lineWidth = 2;
+                        
+                        // 네모 말풍선
+                        ctx.beginPath();
+                        ctx.rect(bx, by, renderW, bh);
+                        ctx.fill();
+                        ctx.stroke();
+                        // 말풍선 꼬리 (아래쪽)
+                        ctx.beginPath();
+                        ctx.moveTo(bx + 15, by + bh);
+                        ctx.lineTo(bx + 20, by + bh + 10);
+                        ctx.lineTo(bx + 25, by + bh);
+                        ctx.fill();
+                        ctx.stroke();
+
+                        ctx.fillStyle = isTroll ? "red" : "#000";
+                        ctx.font = "bold 13px Consolas";
+                        ctx.textAlign = "center";
+                        ctx.textBaseline = "middle";
+                        ctx.fillText(text, bx + renderW / 2, by + bh / 2 + 1);
+                        
+                    } else if (currentStageIndex === 2) { // Stage 3: 학식당 (음식)
+                        b.w = 40;
+                        b.h = 40;
+                        let bx1 = bx + (bw - 40)/2;
+                        b.x = bx1;
+
+                        if (b.type === 'food_sandwich') {
+                            ctx.fillStyle = "#f5deb3"; // 빵
+                            ctx.beginPath();
+                            ctx.moveTo(bx1, by + 40);
+                            ctx.lineTo(bx1 + 40, by + 40);
+                            ctx.lineTo(bx1, by);
+                            ctx.fill();
+                            ctx.fillStyle = "#32cd32"; // 양상추
+                            ctx.fillRect(bx1 + 4, by + 15, 20, 5);
+                            ctx.fillStyle = "#ff6347"; // 토마토
+                            ctx.fillRect(bx1 + 8, by + 25, 20, 5);
+                        } else if (b.type === 'food_cake') {
+                            ctx.fillStyle = "#ffb6c1"; // 크림
+                            ctx.fillRect(bx1, by + 10, 40, 15);
+                            ctx.fillStyle = "#deb887"; // 빵
+                            ctx.fillRect(bx1, by + 25, 40, 15);
+                            ctx.fillStyle = "#dc143c"; // 체리
+                            ctx.beginPath();
+                            ctx.arc(bx1 + 20, by + 5, 5, 0, Math.PI*2);
+                            ctx.fill();
+                        } else if (b.type === 'food_drink') {
+                            ctx.fillStyle = "#87cefa"; // 컵
+                            ctx.beginPath();
+                            ctx.moveTo(bx1 + 5, by + 40);
+                            ctx.lineTo(bx1 + 35, by + 40);
+                            ctx.lineTo(bx1 + 40, by + 10);
+                            ctx.lineTo(bx1, by + 10);
+                            ctx.fill();
+                            ctx.strokeStyle = "#ff4500"; // 빨대
+                            ctx.lineWidth = 3;
+                            ctx.beginPath();
+                            ctx.moveTo(bx1 + 20, by + 15);
+                            ctx.lineTo(bx1 + 30, by);
+                            ctx.stroke();
+                        } else { // food_orange
+                            ctx.fillStyle = "#ffa500";
+                            ctx.beginPath();
+                            ctx.arc(bx1 + 20, by + 20, 18, 0, Math.PI*2);
+                            ctx.fill();
+                            ctx.fillStyle = "#228b22"; // 잎
+                            ctx.beginPath();
+                            ctx.ellipse(bx1 + 20, by + 2, 8, 3, Math.PI/4, 0, Math.PI*2);
+                            ctx.fill();
+                        }
+                    } else if (currentStageIndex === 3) { // Stage 4: 팀플 (카톡 말풍선)
+                        let bgColor = b.isRight ? "#fef01b" : "#ffffff"; 
+                        let renderX = b.isRight ? bx + 40 : bx - 20;
+                        let renderW = 200; // 넓은 말풍선
+                        let renderH = 30; // 약간 더 높게
+                        
+                        b.x = renderX;
+                        b.w = renderW;
+                        b.h = renderH;
+                        
+                        // 카톡 말풍선 스타일
+                        ctx.fillStyle = bgColor;
+                        ctx.strokeStyle = "#ccc";
+                        ctx.lineWidth = 1;
+                        ctx.beginPath();
+                        ctx.roundRect(renderX, by, renderW, renderH, 10);
+                        ctx.fill();
+                        ctx.stroke();
+                        
+                        // 카톡 꼬리
+                        ctx.beginPath();
+                        if (b.isRight) {
+                            ctx.moveTo(renderX + renderW, by + 10);
+                            ctx.lineTo(renderX + renderW + 10, by + 15);
+                            ctx.lineTo(renderX + renderW, by + 20);
+                        } else {
+                            ctx.moveTo(renderX, by + 10);
+                            ctx.lineTo(renderX - 10, by + 15);
+                            ctx.lineTo(renderX, by + 20);
+                        }
+                        ctx.fill();
+                        ctx.stroke();
+
+                        ctx.fillStyle = "#000";
+                        ctx.font = "12px 'Malgun Gothic', Arial";
+                        ctx.textAlign = "center";
+                        ctx.textBaseline = "middle";
+                        ctx.fillText(text, renderX + renderW / 2, by + renderH / 2 + 1);
+                    } else { 
+                        // 기타 스테이지 기본 벽돌
+                        let bgColor = b.hp >= 2 ? "#555555" : "#FF5733";
+                        drawPixelBlock(ctx, bx, by, bw, bh, bgColor);
+                    }
                 }
             }
         }
@@ -709,7 +1155,9 @@ function drawBoss() {
         ctx.fillStyle = "white";
         ctx.fillRect(boss.x - 40, boss.y - 50, 80, 10);
         ctx.fillStyle = "red";
-        ctx.fillRect(boss.x - 40, boss.y - 50, Math.max(0, boss.hp / (boss.maxHp || 20)) * 80, 10);
+        let hpRatio = boss.hp / (boss.maxHp || Math.max(boss.hp, 20));
+        hpRatio = Math.max(0, Math.min(1, hpRatio));
+        ctx.fillRect(boss.x - 40, boss.y - 50, hpRatio * 80, 10);
     }
 }
 
@@ -722,8 +1170,8 @@ function collisionDetection() {
             for (let r = 0; r < bricks[c].length; r++) {
                 let b = bricks[c][r];
                 if (b && b.status > 0 && b.type !== 'empty') {
-                    let bw = brickWidth;
-                    let bh = brickHeight;
+                    let bw = b.w || brickWidth;
+                    let bh = b.h || brickHeight;
 
                     let testX = ball.x;
                     let testY = ball.y;
@@ -758,7 +1206,7 @@ function collisionDetection() {
 
                         if (b.type === 'troll') {
                             b.status = 0;
-                            score -= 50;
+                            score = Math.max(0, score - 50);
                             if (scoreDisplay) scoreDisplay.innerText = score;
                         } else if (b.type !== 'bugcode' || (b.type === 'bugcode' && boss.phase === 1)) {
                             b.hp--;
@@ -766,6 +1214,7 @@ function collisionDetection() {
                             if (b.hp <= 0) {
                                 score += (b.type === 'food' ? 50 : 10);
                                 if (scoreDisplay) scoreDisplay.innerText = score;
+                                ultimateGauge = Math.min(ultimateGauge + 5, MAX_GAUGE);
                             }
                         }
                     }
@@ -934,7 +1383,7 @@ function draw() {
         p.y += p.dy;
 
         let hit = false;
-        
+
         if (p.type === 'debuff') {
             if (p.y + p.radius >= paddle.y && p.y - p.radius <= paddle.y + paddle.height &&
                 p.x + p.radius >= paddle.x && p.x - p.radius <= paddle.x + paddle.width) {
@@ -979,7 +1428,7 @@ function draw() {
                         ball.y -= overlap;
                         ball.dy = -Math.abs(ball.dy);
                     }
-                    
+
                     if (p.text === '""') {
                         p.text = "''";
                         score += 10;
@@ -988,6 +1437,7 @@ function draw() {
                         score += 20;
                     }
                     if (scoreDisplay) scoreDisplay.innerText = score;
+                    ultimateGauge = Math.min(ultimateGauge + 5, MAX_GAUGE);
                 }
             }
         }
@@ -1070,6 +1520,7 @@ function draw() {
                     ball.dy = Math.abs(ball.dy);
                 }
             }
+            ultimateGauge = Math.min(ultimateGauge + 2.5, MAX_GAUGE);
         }
     }
 
@@ -1103,6 +1554,23 @@ function draw() {
     drawProjectiles();
     drawPaddle();
     drawBalls();
+    drawMeteors();
+    drawUltimateGauge();
+
+    // 파티클 렌더링
+    for (let i = particles.length - 1; i >= 0; i--) {
+        let p = particles[i];
+        p.x += p.dx;
+        p.y += p.dy;
+        p.life--;
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.life / 5, 0, Math.PI * 2);
+        ctx.fill();
+        if (p.life <= 0) {
+            particles.splice(i, 1);
+        }
+    }
 
     collisionDetection();
 
