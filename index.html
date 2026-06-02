@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="ko">
+
 <head>
     <meta charset="UTF-8">
     <title>컴공생 마법소녀의 하루</title>
@@ -8,6 +9,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
     <div id="game-container" class="game-container">
         <!-- 상단 UI 패널 -->
@@ -20,7 +22,7 @@
                 <div class="stat-item">♥ <span id="livesDisplay">3</span></div>
                 <div class="stat-item">⭐ <span id="scoreDisplay">0</span></div>
             </div>
-            
+
             <div class="controls">
                 <button id="pauseBtn" class="icon-btn" title="일시정지">⏸️</button>
             </div>
@@ -72,25 +74,26 @@
                 </div>
                 <button id="closeSettingsBtn" class="main-btn" style="margin-top: 30px;">닫기</button>
             </div>
-            
+
             <canvas id="gameCanvas" width="800" height="600"></canvas>
-            
+
             <div id="main-screen" class="overlay-screen">
                 <h1 id="mainTitle">컴공생 마법소녀의 하루</h1>
                 <p id="mainDesc">버그를 물리치고 무사히 과제를 제출하세요!</p>
-                
+
                 <div style="margin-bottom: 25px; display: flex; align-items: center; gap: 10px;">
-                    <label style="font-size: 20px; color: #ff69b4; font-weight: bold; text-shadow: 1px 1px 0px #fff;">게임 난이도:</label>
+                    <label style="font-size: 20px; color: #ff69b4; font-weight: bold; text-shadow: 1px 1px 0px #fff;">게임
+                        난이도:</label>
                     <select id="main-game-mode" class="custom-select">
                         <option value="dev">🛠️ 개발자 모드 (쉬움)</option>
                         <option value="user">🎮 유저 모드 (어려움)</option>
                     </select>
                 </div>
-                
+
                 <div id="stage-select-container">
                     <!-- 스테이지 버튼들이 여기에 동적으로 생성됩니다 -->
                 </div>
-                
+
                 <button id="mainStartBtn" class="main-btn">게임 시작</button>
             </div>
         </div>
@@ -98,4 +101,5 @@
 
     <script src="game.js"></script>
 </body>
+
 </html>
