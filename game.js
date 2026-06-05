@@ -30,6 +30,24 @@ const goToMainBtn = document.getElementById("goToMainBtn");
 const settingsOverlay = document.getElementById("settings-overlay");
 const closeSettingsBtn = document.getElementById("closeSettingsBtn");
 
+const helpOverlay = document.getElementById("help-overlay");
+const helpBtn = document.getElementById("helpBtn");
+const closeHelpBtn = document.getElementById("closeHelpBtn");
+
+const cutsceneOverlay = document.getElementById("cutscene-overlay");
+const cutsceneText = document.getElementById("cutscene-text");
+
+const stageComments = [
+    "오늘도 어김없이 지옥철...\n그래도 1교시는 포기할 수 없지!",
+    "교수님의 목소리가 자장가로 들리기 시작한다...\n안 돼, 버텨야 해!",
+    "드디어 꿀맛 같은 점심시간!\n메뉴는 뭘까?",
+    "왜 항상 조별과제는 나 혼자 하는 기분일까...\n제발 다들 참여 좀 해!",
+    "최종 보스, 과제 제출.\n여기서 무너지면 내 학점도 무너진다!"
+];
+
+let cutsceneTimerId = null;
+let isCutscenePlaying = false;
+
 // 마법소녀 이미지 로드 및 배경 투명화 처리
 const magicalGirlImg = new Image();
 let processedImg = null;
@@ -61,14 +79,19 @@ magicalGirlImg.onload = () => {
 };
 magicalGirlImg.src = "magical_girl.png";
 
+const magicalBeamImg = new Image();
+magicalBeamImg.src = "magical_beam.png";
+
 // 2. 게임 상태 변수
-let isDevMode = true;
+let isDevMode = false;
 let isGameRunning = false;
 let isPaused = false;
 let animationId;
 let score = 0;
 let lives = 10;
 let currentStageIndex = 0;
+let savedLivesAtStageStart = 3;
+let savedScoreAtStageStart = 0;
 
 // 최고 도달 스테이지 로드 (로컬 스토리지)
 let maxUnlockedStage = parseInt(localStorage.getItem('maxUnlockedStage')) || 0;
@@ -97,6 +120,7 @@ let meteors = [];
 let ultimateGauge = 0;
 const MAX_GAUGE = 100;
 let blackhole = null;
+let ultimateBgAlpha = 0;
 
 function createBall(x, y, dx, dy, isRespawning = false) {
     return {
@@ -153,7 +177,7 @@ const stages = [
                 bricks[c] = [];
                 for (let r = 0; r < rowCount; r++) {
                     let isTroll = Math.random() < 0.15;
-                    let hp = isTroll ? 3 : 1;
+                    let hp = isTroll ? 2 : 1;
                     let type = isTroll ? 'troll_hard' : 'passenger';
                     bricks[c][r] = { x: 0, y: 0, status: hp, hp: hp, type: type, offsetX: 0 };
                 }
@@ -410,6 +434,7 @@ function togglePause() {
     } else {
         if (pauseOverlay) pauseOverlay.style.display = "none";
         lastTime = Date.now(); // 일시정지 해제 시 타이머 시간차 점프 방지
+        cancelAnimationFrame(animationId);
         draw();
     }
 }
@@ -443,7 +468,6 @@ if (goToMainBtn) goToMainBtn.addEventListener("click", () => {
     cancelAnimationFrame(animationId);
     isGameRunning = false;
     isPaused = false;
-    currentStageIndex = 0;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     showMainScreen("컴공생 마법소녀의 하루", "버그를 물리치고 무사히 과제를 제출하세요!", "menu");
 });
@@ -458,6 +482,14 @@ if (mainStartBtn) mainStartBtn.addEventListener("click", () => {
     }
 });
 
+if (helpBtn) helpBtn.addEventListener("click", () => {
+    if (helpOverlay) helpOverlay.style.display = "flex";
+});
+
+if (closeHelpBtn) closeHelpBtn.addEventListener("click", () => {
+    if (helpOverlay) helpOverlay.style.display = "none";
+});
+
 if (ballColorSelect) ballColorSelect.addEventListener("change", (e) => {
     balls.forEach(b => b.color = e.target.value);
 });
@@ -467,10 +499,34 @@ function updateGameMode(mode) {
     isDevMode = (mode === 'dev');
     if (gameModeSelect && gameModeSelect.value !== mode) gameModeSelect.value = mode;
     if (mainGameModeSelect && mainGameModeSelect.value !== mode) mainGameModeSelect.value = mode;
+    renderStageSelect();
+    if (mainScreen.style.display !== "none" && mainStartBtn && mainStartBtn.innerText === "게임 시작") {
+        mainStartBtn.style.display = isDevMode ? "block" : "none";
+    }
 }
 
 if (gameModeSelect) gameModeSelect.addEventListener("change", (e) => updateGameMode(e.target.value));
 if (mainGameModeSelect) mainGameModeSelect.addEventListener("change", (e) => updateGameMode(e.target.value));
+
+let titleClickCount = 0;
+let titleClickTimer = null;
+if (mainTitle) {
+    mainTitle.addEventListener("click", () => {
+        titleClickCount++;
+        clearTimeout(titleClickTimer);
+        titleClickTimer = setTimeout(() => {
+            titleClickCount = 0;
+        }, 1000);
+
+        if (titleClickCount >= 3) {
+            titleClickCount = 0;
+            const container = document.getElementById("main-mode-container");
+            if (container) {
+                container.style.display = container.style.display === "none" ? "flex" : "none";
+            }
+        }
+    });
+}
 
 if (bgmVolumeSlider) bgmVolumeSlider.addEventListener("input", (e) => {
     const volume = e.target.value;
@@ -480,24 +536,62 @@ if (bgmVolumeSlider) bgmVolumeSlider.addEventListener("input", (e) => {
 });
 
 function startGame(stageIndex = -1) {
+    if (isCutscenePlaying) return;
+
     if (pauseOverlay) pauseOverlay.style.display = "none";
     mainScreen.style.display = "none";
     if (uiPanel) uiPanel.style.display = "flex";
 
     if (stageIndex !== -1) {
         currentStageIndex = stageIndex;
-        lives = 3;
+        if (stageIndex === 0) {
+            lives = isDevMode ? 10 : 3;
+            savedLivesAtStageStart = lives;
+            score = 0;
+            savedScoreAtStageStart = score;
+        } else {
+            lives = savedLivesAtStageStart;
+            score = savedScoreAtStageStart;
+        }
         if (livesDisplay) livesDisplay.innerText = lives;
-        score = 0;
         if (scoreDisplay) scoreDisplay.innerText = score;
         ultimateGauge = 0;
+    } else {
+        savedLivesAtStageStart = lives;
+        savedScoreAtStageStart = score;
     }
 
-    initStage(currentStageIndex);
-    isGameRunning = true;
-    isPaused = false;
-    lastTime = Date.now();
-    draw();
+    if (cutsceneOverlay && cutsceneText && currentStageIndex >= 0 && currentStageIndex < 5) {
+        isCutscenePlaying = true;
+        cutsceneOverlay.style.display = "flex";
+        
+        // 배경 이미지 설정 (pre_stage_1_bg.png ~ pre_stage_5_bg.png)
+        cutsceneOverlay.style.backgroundImage = `linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), url('pre_stage_${currentStageIndex + 1}_bg.png')`;
+        cutsceneOverlay.style.backgroundSize = "cover";
+        cutsceneOverlay.style.backgroundPosition = "center";
+        
+        cutsceneText.innerText = stageComments[currentStageIndex];
+
+        cutsceneTimerId = setTimeout(() => {
+            cutsceneOverlay.style.display = "none";
+            isCutscenePlaying = false;
+            cutsceneTimerId = null;
+
+            initStage(currentStageIndex);
+            isGameRunning = true;
+            isPaused = false;
+            lastTime = Date.now();
+            cancelAnimationFrame(animationId);
+            draw();
+        }, 5000);
+    } else {
+        initStage(currentStageIndex);
+        isGameRunning = true;
+        isPaused = false;
+        lastTime = Date.now();
+        cancelAnimationFrame(animationId);
+        draw();
+    }
 }
 
 // 5. 스테이지 초기화
@@ -533,8 +627,16 @@ function initStage(index) {
         gameContainer.style.backgroundColor = "transparent";
     } else if (index === 2) {
         // 투명도 레이어를 추가하여 벽돌이 잘 보이게 처리 (학식당)
-        canvas.style.backgroundImage = "linear-gradient(rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.5)), url('stage_2_bg.png')";
+        canvas.style.backgroundImage = "linear-gradient(rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.5)), url('stage_2_1_bg.png')";
         canvas.style.backgroundSize = "cover";
+        canvas.style.backgroundPosition = "center";
+        canvas.style.border = "none";
+        canvas.style.outline = "none";
+        gameContainer.style.backgroundColor = "transparent";
+    } else if (index === 3) {
+        // 투명도 레이어를 추가하여 벽돌이 잘 보이게 처리 (조별과제 텅 빈 카톡방)
+        canvas.style.backgroundImage = "linear-gradient(rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.5)), url('stage_3_bg.png')";
+        canvas.style.backgroundSize = "100% 100%"; // 화면 비율에 맞춰 늘리거나 줄여 잘림 방지
         canvas.style.backgroundPosition = "center";
         canvas.style.border = "none";
         canvas.style.outline = "none";
@@ -1032,9 +1134,16 @@ function drawBricks() {
                         let renderW = 120; // 말풍선 고정 길이 약간 늘림
                         b.w = renderW;
 
-                        let bgColor = isTroll ? "#ffcccb" : "#ffffff";
+                        let bgColor = "#ffffff";
+                        let strokeColor = "#888";
+                        if (isTroll) {
+                            strokeColor = "red";
+                            if (b.hp === 3) bgColor = "#ff4c4c";
+                            else if (b.hp === 2) bgColor = "#ff7f7f";
+                            else bgColor = "#ffcccb";
+                        }
                         ctx.fillStyle = bgColor;
-                        ctx.strokeStyle = isTroll ? "red" : "#888";
+                        ctx.strokeStyle = strokeColor;
                         ctx.lineWidth = 2;
 
                         // 네모 말풍선
@@ -1312,6 +1421,13 @@ function collisionDetection() {
         let stageEarned = baseEarned + timeBonus;
         let grade = getGrade(stageEarned);
 
+        let bonusMessage = "";
+        if (currentStageIndex === 2) {
+            lives += 2;
+            if (livesDisplay) livesDisplay.innerText = lives;
+            bonusMessage = "\n[보너스] 라이프 2 획득!\n";
+        }
+
         // 최고 기록 갱신 및 로컬 스토리지 저장
         if (currentStageIndex + 1 > maxUnlockedStage && currentStageIndex + 1 < stages.length) {
             maxUnlockedStage = currentStageIndex + 1;
@@ -1322,13 +1438,13 @@ function collisionDetection() {
         if (currentStageIndex < stages.length) {
             showMainScreen(
                 "스테이지 클리어!",
-                `기본 스코어: ${baseEarned}\n시간 보너스: +${timeBonus}\n합산 스코어: ${stageEarned}\n이번 스테이지 등급: [ ${grade} ]\n\n${stages[currentStageIndex].time} 으로 이동합니다.`,
+                `기본 스코어: ${baseEarned}\n시간 보너스: +${timeBonus}\n합산 스코어: ${stageEarned}\n이번 스테이지 등급: [ ${grade} ]\n${bonusMessage}\n${stages[currentStageIndex].time} 으로 이동합니다.`,
                 "next"
             );
         } else {
             showMainScreen(
                 "A+ 학점 달성!",
-                `기본 스코어: ${baseEarned}\n시간 보너스: +${timeBonus}\n합산 스코어: ${stageEarned}\n최종 학점: [ ${grade} ]\n\n수고하셨습니다. 완벽한 하루였습니다.`,
+                `기본 스코어: ${baseEarned}\n시간 보너스: +${timeBonus}\n합산 스코어: ${stageEarned}\n최종 학점: [ ${grade} ]\n${bonusMessage}\n수고하셨습니다. 완벽한 하루였습니다.`,
                 "return"
             );
             currentStageIndex = 0;
@@ -1341,22 +1457,42 @@ function renderStageSelect() {
     if (!container) return;
     container.innerHTML = "";
 
-    stages.forEach((stage, index) => {
-        const btn = document.createElement("button");
-        btn.className = "stage-btn";
+    if (isDevMode) {
+        stages.forEach((stage, index) => {
+            const btn = document.createElement("button");
+            btn.className = "stage-btn";
 
-        if (index <= maxUnlockedStage) {
-            btn.innerText = `${index + 1}교시`;
-            btn.addEventListener("click", () => {
-                startGame(index);
+            if (index <= maxUnlockedStage) {
+                btn.innerText = `${index + 1}교시`;
+                btn.addEventListener("click", () => {
+                    startGame(index);
+                });
+            } else {
+                btn.innerText = `🔒 ${index + 1}교시`;
+                btn.classList.add("locked");
+            }
+
+            container.appendChild(btn);
+        });
+    } else {
+        const startBtn = document.createElement("button");
+        startBtn.className = "stage-btn";
+        startBtn.innerText = "처음부터";
+        startBtn.addEventListener("click", () => {
+            startGame(0);
+        });
+        container.appendChild(startBtn);
+
+        if (maxUnlockedStage > 0) {
+            const continueBtn = document.createElement("button");
+            continueBtn.className = "stage-btn";
+            continueBtn.innerText = "이어하기";
+            continueBtn.addEventListener("click", () => {
+                startGame(currentStageIndex);
             });
-        } else {
-            btn.innerText = `🔒 ${index + 1}교시`;
-            btn.classList.add("locked");
+            container.appendChild(continueBtn);
         }
-
-        container.appendChild(btn);
-    });
+    }
 }
 
 function showMainScreen(title, desc, mode = "next") {
@@ -1368,7 +1504,7 @@ function showMainScreen(title, desc, mode = "next") {
     const stageSelect = document.getElementById("stage-select-container");
     if (mode === "menu") {
         if (mainStartBtn) {
-            mainStartBtn.style.display = "block";
+            mainStartBtn.style.display = isDevMode ? "block" : "none";
             mainStartBtn.innerText = "게임 시작";
         }
         if (stageSelect) {
@@ -1597,6 +1733,19 @@ function draw() {
     }
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    if (meteors.length > 0) {
+        ultimateBgAlpha = Math.min(ultimateBgAlpha + 0.02, 0.4);
+    } else {
+        ultimateBgAlpha = Math.max(ultimateBgAlpha - 0.02, 0);
+    }
+
+    if (ultimateBgAlpha > 0 && magicalBeamImg.complete && magicalBeamImg.naturalWidth !== 0) {
+        ctx.save();
+        ctx.globalAlpha = ultimateBgAlpha;
+        ctx.drawImage(magicalBeamImg, 0, 0, canvas.width, canvas.height);
+        ctx.restore();
+    }
 
     drawBlackhole();
     drawBricks();
