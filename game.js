@@ -39,7 +39,7 @@ const cutsceneText = document.getElementById("cutscene-text");
 
 const stageComments = [
     "오늘도 어김없이 지옥철...\n그래도 1교시는 포기할 수 없지!",
-    "교수님의 목소리가 자장가로 들리기 시작한다...\n안 돼, 버텨야 해!",
+    "힘든 지하철을 뚫고 수업에 들어왔는데 졸음이 몰려온다...\n안 돼, 버텨야 해!",
     "드디어 꿀맛 같은 점심시간!\n메뉴는 뭘까?",
     "왜 항상 조별과제는 나 혼자 하는 기분일까...\n제발 다들 참여 좀 해!",
     "최종 보스, 과제 제출.\n여기서 무너지면 내 학점도 무너진다!"
@@ -279,7 +279,7 @@ const stages = [
                             // 너무 아래로 내려와서 패들 라인에 닿으면 점수 페널티 후 파괴
                             if (b.y && b.y > canvas.height - 150) {
                                 b.status = 0;
-                                score = Math.max(0, score - 100); // 큰 페널티
+                                score += 500; // 큰 보상
                                 if (scoreDisplay) scoreDisplay.innerText = score;
                                 // 터지는 이펙트
                                 for (let i = 0; i < 15; i++) {
@@ -564,12 +564,12 @@ function startGame(stageIndex = -1) {
     if (cutsceneOverlay && cutsceneText && currentStageIndex >= 0 && currentStageIndex < 5) {
         isCutscenePlaying = true;
         cutsceneOverlay.style.display = "flex";
-        
+
         // 배경 이미지 설정 (pre_stage_1_bg.png ~ pre_stage_5_bg.png)
         cutsceneOverlay.style.backgroundImage = `linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), url('pre_stage_${currentStageIndex + 1}_bg.png')`;
         cutsceneOverlay.style.backgroundSize = "cover";
         cutsceneOverlay.style.backgroundPosition = "center";
-        
+
         cutsceneText.innerText = stageComments[currentStageIndex];
 
         cutsceneTimerId = setTimeout(() => {
@@ -1305,9 +1305,12 @@ function drawBoss() {
             ctx.fillStyle = "#ff0000";
             ctx.font = "bold 40px Consolas";
             ctx.textAlign = "center";
-            ctx.fillText("! WARNING !", canvas.width / 2, canvas.height / 2 - 30);
+            ctx.fillText("! WARNING !", canvas.width / 2, canvas.height / 2 - 40);
             ctx.font = "bold 24px Consolas";
-            ctx.fillText("FATAL ERROR: MISSING SEMICOLON", canvas.width / 2, canvas.height / 2 + 10);
+            ctx.fillText("FATAL ERROR: MISSING SEMICOLON", canvas.width / 2, canvas.height / 2 + 5);
+            ctx.fillStyle = "#ffcc00";
+            ctx.font = "bold 22px 'Malgun Gothic', Arial";
+            ctx.fillText("아! 뭘 빼먹었는지 깨달았어!", canvas.width / 2, canvas.height / 2 + 45);
             ctx.textAlign = "left";
         }
         ctx.restore();
@@ -1366,7 +1369,7 @@ function collisionDetection() {
 
                         if (b.type === 'troll') {
                             b.status = 0;
-                            score = Math.max(0, score - 50);
+                            score += 500; // 보상으로 변경
                             if (scoreDisplay) scoreDisplay.innerText = score;
                         } else if (b.type !== 'bugcode' || (b.type === 'bugcode' && boss.phase === 1)) {
                             b.hp--;
