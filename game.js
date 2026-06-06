@@ -534,10 +534,7 @@ if (mainTitle) {
 
         if (titleClickCount >= 3) {
             titleClickCount = 0;
-            const container = document.getElementById("main-mode-container");
-            if (container) {
-                container.style.display = container.style.display === "none" ? "flex" : "none";
-            }
+            updateGameMode(isDevMode ? 'user' : 'dev');
         }
     });
 }
