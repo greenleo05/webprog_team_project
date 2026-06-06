@@ -47,9 +47,10 @@
                     <div class="setting-item">
                         <label>공 색상</label>
                         <select id="ball-color" class="custom-select">
-                            <option value="red">🔴 빨간색</option>
-                            <option value="blue">🔵 파란색</option>
-                            <option value="green">🟢 초록색</option>
+                            <option value="ball_yellow.png">🟡 노란색 공</option>
+                            <option value="ball_green.png">🟢 초록색 공</option>
+                            <option value="ball_red.png" selected>🔴 빨간색 공</option>
+                            <option value="ball_blue.png">🔵 파란색 공</option>
                         </select>
                     </div>
                     <div class="setting-item">
@@ -58,19 +59,14 @@
                             <option value="#ff69b4">🌸 핑크색</option>
                             <option value="#87ceeb">🧊 하늘색</option>
                             <option value="#ffd700">⭐ 노란색</option>
+                            <option value="paddle_ex_design.png">🎨 특별 디자인</option>
                         </select>
                     </div>
                     <div class="setting-item">
                         <label>배경음악 음량</label>
-                        <input type="range" id="bgm-volume" min="0" max="100" value="50" class="custom-slider">
+                        <input type="range" id="bgm-volume" min="0" max="100" value="20" class="custom-slider">
                     </div>
-                    <div class="setting-item">
-                        <label>게임 난이도</label>
-                        <select id="game-mode" class="custom-select">
-                            <option value="user" selected>🎮 유저 모드 (어려움)</option>
-                            <option value="dev">🛠️ 개발자 모드 (쉬움)</option>
-                        </select>
-                    </div>
+
                 </div>
                 <button id="closeSettingsBtn" class="main-btn" style="margin-top: 30px;">닫기</button>
             </div>
@@ -116,15 +112,7 @@
                 <h1 id="mainTitle">컴공생 마법소녀의 하루</h1>
                 <p id="mainDesc">버그를 물리치고 무사히 과제를 제출하세요!</p>
 
-                <div id="main-mode-container"
-                    style="margin-bottom: 25px; display: none; align-items: center; gap: 10px;">
-                    <label style="font-size: 20px; color: #ff69b4; font-weight: bold; text-shadow: 1px 1px 0px #fff;">게임
-                        난이도:</label>
-                    <select id="main-game-mode" class="custom-select">
-                        <option value="user" selected>🎮 유저 모드 (어려움)</option>
-                        <option value="dev">🛠️ 개발자 모드 (쉬움)</option>
-                    </select>
-                </div>
+
 
                 <div id="stage-select-container">
                     <!-- 스테이지 버튼들이 여기에 동적으로 생성됩니다 -->

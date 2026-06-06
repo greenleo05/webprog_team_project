@@ -82,6 +82,14 @@ magicalGirlImg.src = "magical_girl.png";
 const magicalBeamImg = new Image();
 magicalBeamImg.src = "magical_beam.png";
 
+const loadedDesignImages = {};
+const designImageFiles = ["paddle_ex_design.png", "ball_yellow.png", "ball_green.png", "ball_red.png", "ball_blue.png"];
+designImageFiles.forEach(src => {
+    const img = new Image();
+    img.src = src;
+    loadedDesignImages[src] = img;
+});
+
 // 2. 게임 상태 변수
 let isDevMode = false;
 let isGameRunning = false;
@@ -128,8 +136,8 @@ function createBall(x, y, dx, dy, isRespawning = false) {
         y: y,
         dx: dx,
         dy: dy,
-        radius: 10,
-        color: ballColorSelect ? ballColorSelect.value : "red",
+        radius: 15,
+        color: ballColorSelect ? ballColorSelect.value : "ball_red.png",
         isRespawning: isRespawning,
         respawnTimer: isRespawning ? Date.now() : 0
     };
@@ -276,19 +284,25 @@ const stages = [
                             b.offsetX = Math.sin(time * 2 + c) * 20; // 격렬한 좌우 진동
                             b.offsetY = Math.cos(time * 2 + r) * 10 + b.dropY;
 
-                            // 너무 아래로 내려와서 패들 라인에 닿으면 점수 페널티 후 파괴
-                            if (b.y && b.y > canvas.height - 150) {
+                            // 패들 라인에 닿으면 점수 페널티 후 파괴
+                            let bw = b.w || 200;
+                            let bh = b.h || 30;
+                            if (b.y && b.y + bh >= paddle.y && b.y <= paddle.y + paddle.height &&
+                                b.x + bw >= paddle.x && b.x <= paddle.x + paddle.width) {
                                 b.status = 0;
-                                score += 500; // 큰 보상
+                                score -= 500; // 패들에 닿으면 점수 페널티
+                                if (score < 0) score = 0;
                                 if (scoreDisplay) scoreDisplay.innerText = score;
                                 // 터지는 이펙트
                                 for (let i = 0; i < 15; i++) {
                                     particles.push({
-                                        x: b.x + (b.w || 75) / 2, y: b.y + (b.h || 20) / 2,
+                                        x: b.x + bw / 2, y: b.y + bh / 2,
                                         dx: (Math.random() - 0.5) * 10, dy: (Math.random() - 0.5) * 10,
-                                        life: 30, color: "#9370db"
+                                        life: 30, color: "#ff0000"
                                     });
                                 }
+                            } else if (b.y && b.y > canvas.height) {
+                                b.status = 0; // 화면 밖으로 나가면 파괴
                             }
                         } else {
                             // 일반 블록은 둥둥 떠다님
@@ -528,14 +542,22 @@ if (mainTitle) {
     });
 }
 
-if (bgmVolumeSlider) bgmVolumeSlider.addEventListener("input", (e) => {
-    const volume = e.target.value;
-    // 추후 배경음악이 추가되면 아래 코드를 통해 볼륨을 조절할 수 있습니다.
-    // if(bgmAudio) bgmAudio.volume = volume / 100;
-    console.log("BGM 볼륨 설정:", volume);
-});
+const bgmAudio = new Audio("background-music.wav");
+bgmAudio.loop = true;
+if (bgmVolumeSlider) {
+    bgmAudio.volume = bgmVolumeSlider.value / 100;
+    bgmVolumeSlider.addEventListener("input", (e) => {
+        const volume = e.target.value;
+        bgmAudio.volume = volume / 100;
+        console.log("BGM 볼륨 설정:", volume);
+    });
+}
 
 function startGame(stageIndex = -1) {
+    if (bgmAudio && bgmAudio.paused) {
+        bgmAudio.play().catch(e => console.log("Audio play failed:", e));
+    }
+
     if (isCutscenePlaying) return;
 
     if (pauseOverlay) pauseOverlay.style.display = "none";
@@ -707,10 +729,27 @@ function drawBalls() {
         const px = ball.x - ball.radius;
         const py = ball.y - ball.radius;
 
+        const drawBallShape = () => {
+            if (ball.color && ball.color.endsWith(".png")) {
+                const img = loadedDesignImages[ball.color];
+                if (img && img.complete && img.naturalWidth !== 0) {
+                    const scale = 1.76;
+                    const imgSize = size * scale;
+                    const imgPx = ball.x - imgSize / 2;
+                    const imgPy = ball.y - imgSize / 2;
+                    ctx.drawImage(img, imgPx, imgPy, imgSize, imgSize);
+                } else {
+                    drawPixelBlock(ctx, px, py, size, size, "red");
+                }
+            } else {
+                drawPixelBlock(ctx, px, py, size, size, ball.color || "red");
+            }
+        };
+
         if (ball.isRespawning) {
             const elapsed = Date.now() - ball.respawnTimer;
             if (Math.floor(elapsed / 150) % 2 === 0) {
-                drawPixelBlock(ctx, px, py, size, size, ball.color);
+                drawBallShape();
             }
             if (elapsed > 1000) {
                 ball.isRespawning = false;
@@ -718,7 +757,7 @@ function drawBalls() {
                 ball.dy = BASE_SPEED;
             }
         } else {
-            drawPixelBlock(ctx, px, py, size, size, ball.color);
+            drawBallShape();
         }
     });
 }
@@ -1004,7 +1043,18 @@ function drawPaddle() {
         ctx.drawImage(processedImg, paddle.x + paddle.width / 2 - imgW / 2, paddle.y, imgW, imgH);
     }
 
-    drawPixelBlock(ctx, paddle.x, paddle.y, paddle.width, paddle.height, paddle.debuffTimer > 0 ? "#7b68ee" : paddle.color);
+    if (paddle.debuffTimer > 0) {
+        drawPixelBlock(ctx, paddle.x, paddle.y, paddle.width, paddle.height, "#7b68ee");
+    } else if (paddle.color && paddle.color.endsWith(".png")) {
+        const img = loadedDesignImages[paddle.color];
+        if (img && img.complete && img.naturalWidth !== 0) {
+            ctx.drawImage(img, paddle.x, paddle.y, paddle.width, paddle.height);
+        } else {
+            drawPixelBlock(ctx, paddle.x, paddle.y, paddle.width, paddle.height, "#ff69b4");
+        }
+    } else {
+        drawPixelBlock(ctx, paddle.x, paddle.y, paddle.width, paddle.height, paddle.color);
+    }
 }
 
 function drawBricks() {
