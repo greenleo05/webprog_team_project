@@ -73,7 +73,6 @@ magicalGirlImg.onload = () => {
         processedImg = new Image();
         processedImg.src = tempCanvas.toDataURL();
     } catch (e) {
-        // 로컬 파일 실행 시 CORS 에러 대비 (원본 그대로 사용)
         processedImg = magicalGirlImg;
     }
 };
@@ -117,7 +116,7 @@ const paddle = {
     width: 150,
     x: (canvas.width - 150) / 2,
     y: canvas.height - 80,
-    color: "#ff69b4",
+    color: "paddle_ex_design.png",
     debuffTimer: 0
 };
 
@@ -1416,7 +1415,7 @@ function collisionDetection() {
 
                         if (b.type === 'troll') {
                             b.status = 0;
-                            score += 500; // 보상으로 변경
+                            score += 500;
                             if (scoreDisplay) scoreDisplay.innerText = score;
                         } else if (b.type !== 'bugcode' || (b.type === 'bugcode' && boss.phase === 1)) {
                             b.hp--;
@@ -1828,4 +1827,4 @@ function draw() {
 }
 
 // 초기 화면 설정 (최초 로드 시 스테이지 선택 버튼 생성 및 게임 시작 버튼 표시)
-showMainScreen("컴공생 마법소녀의 하루", "버그를 물리치고 무사히 과제를 제출하세요!", "menu");
+showMainScreen("컴공생 마법소녀의 하루", "마법소녀의 힘으로 완벽한 하루를 보내자!", "menu");
