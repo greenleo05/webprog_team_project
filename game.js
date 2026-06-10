@@ -109,7 +109,7 @@ let lastTime = 0;
 let stageBaseScore = 0; // 스테이지별 획득 점수(등급 계산용)
 
 // 고정 속력 상수
-const BASE_SPEED = 3.5
+const BASE_SPEED = 5
 
 const paddle = {
     height: 15,
