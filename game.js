@@ -108,8 +108,8 @@ let timeLeft = 60;
 let lastTime = 0;
 let stageBaseScore = 0; // 스테이지별 획득 점수(등급 계산용)
 
-// 고정 속력 상수 (기존 3, 3 기준 유클리드 속력 = 약 4.24)
-const BASE_SPEED = Math.sqrt(3 * 3 + 3 * 3);
+// 고정 속력 상수
+const BASE_SPEED = Math.sqrt(5 * 5 + 5 * 5);
 
 const paddle = {
     height: 15,
