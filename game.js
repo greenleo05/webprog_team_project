@@ -614,6 +614,7 @@ function startGame(stageIndex = -1) {
 
 // 5. 스테이지 초기화
 function initStage(index) {
+    console.log("현재 로드된 BASE_SPEED 값은:", BASE_SPEED);
     if (index >= stages.length) {
         alert("모든 일과를 마쳤습니다! 과제 제출 성공! (A+)");
         isGameRunning = false;
