@@ -1512,15 +1512,10 @@ function renderStageSelect() {
             const btn = document.createElement("button");
             btn.className = "stage-btn";
 
-            if (index <= maxUnlockedStage) {
-                btn.innerText = `${index + 1}교시`;
-                btn.addEventListener("click", () => {
-                    startGame(index);
-                });
-            } else {
-                btn.innerText = `🔒 ${index + 1}교시`;
-                btn.classList.add("locked");
-            }
+            btn.innerText = `${index + 1}교시`;
+            btn.addEventListener("click", () => {
+                startGame(index);
+            });
 
             container.appendChild(btn);
         });
